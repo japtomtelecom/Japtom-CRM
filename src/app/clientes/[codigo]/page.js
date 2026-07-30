@@ -172,6 +172,11 @@ export default function FichaClientePage() {
     await llamarMikrotik('cambiar-plan', { clienteId: cliente.id });
   }
 
+  async function crearUsuarioMikrotik() {
+    if (!confirm(`¿Crear el usuario PPPoE "${cliente.pppoe_usuario}" en el MikroTik de ${cliente.ciudad}?`)) return;
+    await llamarMikrotik('crear-usuario', { clienteId: cliente.id });
+  }
+
   async function generarTicket() {
     if (!confirm(`¿Confirmas generar el ticket de falla para ${cliente.nombre}?`)) return;
     await generarTicketFalla(cliente, motivoFalla, config.empresa_nombre);
@@ -332,6 +337,10 @@ export default function FichaClientePage() {
                   <label className="label">Usuario PPPoE</label>
                   <input className="input" value={form.pppoe_usuario || ''} onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value })} placeholder="Igual que en el MikroTik" />
                 </div>
+                <div>
+                  <label className="label">Contraseña PPPoE</label>
+                  <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })} placeholder="Solo se usa para crearlo en el MikroTik" />
+                </div>
                 <div className="col-span-2">
                   <label className="label">Dirección</label>
                   <input className="input" value={form.direccion || ''} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
@@ -469,6 +478,11 @@ export default function FichaClientePage() {
                 </p>
               ) : (
                 <div className="space-y-2">
+                  {cliente.pppoe_password && (
+                    <button onClick={crearUsuarioMikrotik} disabled={mikrotikCargando} className="btn-secondary w-full">
+                      ➕ Crear usuario en MikroTik
+                    </button>
+                  )}
                   <button onClick={reactivarServicio} disabled={mikrotikCargando} className="btn-secondary w-full">
                     ▶️ Reactivar servicio
                   </button>
