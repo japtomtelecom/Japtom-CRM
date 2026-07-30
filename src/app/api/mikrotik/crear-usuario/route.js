@@ -1,0 +1,70 @@
+import { RouterOSAPI } from 'node-routeros';
+import { verificarAdmin } from '@/lib/verificarAdmin';
+import { configMikrotik } from '@/lib/mikrotikConfig';
+
+export async function POST(request) {
+  const auth = await verificarAdmin(request);
+  if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
+
+  const { clienteId } = await request.json();
+  if (!clienteId) return Response.json({ error: 'Falta clienteId.' }, { status: 400 });
+
+  const { data: cliente, error: errCliente } = await auth.supabaseAdmin
+    .from('clientes')
+    .select('codigo, pppoe_usuario, pppoe_password, plan, nombre, ciudad, activo')
+    .eq('id', clienteId)
+    .single();
+
+  if (errCliente || !cliente) return Response.json({ error: 'Cliente no encontrado.' }, { status: 404 });
+  if (!cliente.pppoe_usuario || !cliente.pppoe_password) {
+    return Response.json(
+      { error: 'Este cliente necesita "Usuario PPPoE" y "Contraseña PPPoE" completos en su ficha antes de crearlo en el MikroTik.' },
+      { status: 400 }
+    );
+  }
+
+  const { data: planCatalogo } = await auth.supabaseAdmin
+    .from('planes')
+    .select('perfil_mikrotik')
+    .eq('nombre', cliente.plan)
+    .single();
+
+  let conn;
+  try {
+    const routerConfig = configMikrotik(cliente.ciudad);
+    conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
+    await conn.connect();
+
+    // Evita crear un duplicado si el usuario ya existe en ese router
+    const existentes = await conn.write('/ppp/secret/print', [`?name=${cliente.pppoe_usuario}`]);
+    if (existentes.length) {
+      conn.close();
+      return Response.json(
+        { error: `Ya existe un usuario PPPoE llamado "${cliente.pppoe_usuario}" en este MikroTik.` },
+        { status: 409 }
+      );
+    }
+
+    const params = [
+      `=name=${cliente.pppoe_usuario}`,
+      `=password=${cliente.pppoe_password}`,
+      '=service=pppoe',
+      `=disabled=${cliente.activo ? 'no' : 'yes'}`,
+      `=comment=${cliente.nombre} (${cliente.codigo})`,
+    ];
+    if (planCatalogo?.perfil_mikrotik) {
+      params.push(`=profile=${planCatalogo.perfil_mikrotik}`);
+    }
+
+    await conn.write('/ppp/secret/add', params);
+    conn.close();
+
+    return Response.json({
+      ok: true,
+      mensaje: `Usuario PPPoE "${cliente.pppoe_usuario}" creado en el MikroTik de ${cliente.ciudad}.`,
+    });
+  } catch (e) {
+    if (conn) try { conn.close(); } catch {}
+    return Response.json({ error: 'No se pudo conectar con el MikroTik: ' + e.message }, { status: 502 });
+  }
+}
