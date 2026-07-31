@@ -24,6 +24,7 @@ export default function NuevoClientePage() {
     ciudad: 'El Alto',
     pppoe_usuario: '',
     pppoe_password: '',
+    ip_asignada: '',
   });
   const [error, setError] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -134,50 +135,4 @@ export default function NuevoClientePage() {
           </div>
           <div>
             <label className="label">Precio (Bs)</label>
-            <input type="number" step="0.01" className="input" value={form.precio} onChange={(e) => setForm({ ...form, precio: e.target.value })} />
-          </div>
-          <div>
-            <label className="label">Activo</label>
-            <select className="input" value={form.activo ? 'si' : 'no'} onChange={(e) => setForm({ ...form, activo: e.target.value === 'si' })}>
-              <option value="si">Sí</option>
-              <option value="no">No</option>
-            </select>
-          </div>
-          <div className="col-span-2">
-            <label className="label">Dirección</label>
-            <input className="input" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
-          </div>
-          <div>
-            <label className="label">Usuario PPPoE (opcional)</label>
-            <input
-              className="input"
-              value={form.pppoe_usuario}
-              onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value })}
-              placeholder="Igual que en el MikroTik"
-            />
-          </div>
-          <div>
-            <label className="label">Contraseña PPPoE (opcional)</label>
-            <input
-              className="input"
-              value={form.pppoe_password}
-              onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })}
-              placeholder="Solo se usa para crearlo en el MikroTik"
-            />
-          </div>
-        </div>
-
-        <p className="text-xs text-brand-400 -mt-2">
-          Si completas Usuario y Contraseña PPPoE, después de guardar podrás crear este usuario directo en tu
-          MikroTik desde la ficha del cliente.
-        </p>
-
-        {error && <p className="text-red-600 text-sm">{error}</p>}
-
-        <button type="submit" disabled={guardando} className="btn-primary">
-          {guardando ? 'Guardando…' : 'Guardar cliente'}
-        </button>
-      </form>
-    </AppShell>
-  );
-}
+            <input type="number" step="0.01" className="input"
