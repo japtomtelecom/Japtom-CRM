@@ -4,16 +4,30 @@ import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
+import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs } from '@/lib/utils';
 
-const VACIO = { nombre: '', velocidad: '', frecuencia: 'Mensual', precio: '', perfil_mikrotik: '' };
+const VACIO = { nombre: '', velocidad: '', frecuencia: 'Mensual', precio: '', perfil_mikrotik: '', ciudad: 'El Alto' };
 
 export default function PlanesPage() {
   const { isAdmin } = usePerfil();
+  const { sucursalActiva, esFija } = useSucursalActiva();
   const [planes, setPlanes] = useState([]);
   const [form, setForm] = useState(VACIO);
   const [editId, setEditId] = useState(null);
   const [msg, setMsg] = useState('');
+  const [ciudadFiltro, setCiudadFiltro] = useState('todas');
+
+  useEffect(() => {
+    if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
+  }, [sucursalActiva]);
+
+  useEffect(() => {
+    // El formulario de "nuevo plan" arranca con la ciudad activa por defecto
+    if (sucursalActiva && sucursalActiva !== 'Todas') {
+      setForm((f) => ({ ...f, ciudad: sucursalActiva }));
+    }
+  }, [sucursalActiva]);
 
   async function cargar() {
     const { data } = await supabase.from('planes').select('*').order('precio', { ascending: true });
@@ -23,6 +37,8 @@ export default function PlanesPage() {
   useEffect(() => {
     cargar();
   }, []);
+
+  const filtrados = ciudadFiltro === 'todas' ? planes : planes.filter((p) => p.ciudad === ciudadFiltro);
 
   async function guardar(e) {
     e.preventDefault();
@@ -38,7 +54,7 @@ export default function PlanesPage() {
       setMsg('Error: ' + error.message);
       return;
     }
-    setForm(VACIO);
+    setForm({ ...VACIO, ciudad: sucursalActiva && sucursalActiva !== 'Todas' ? sucursalActiva : 'El Alto' });
     setEditId(null);
     cargar();
   }
@@ -51,7 +67,20 @@ export default function PlanesPage() {
 
   return (
     <AppShell>
-      <h1 className="font-display text-2xl font-bold text-brand-800 mb-6">Planes</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <h1 className="font-display text-2xl font-bold text-brand-800">Planes</h1>
+        {esFija ? (
+          <span className="input md:max-w-[180px] flex items-center bg-brand-50 text-brand-600">
+            📍 {ciudadFiltro}
+          </span>
+        ) : (
+          <select className="input md:max-w-[180px]" value={ciudadFiltro} onChange={(e) => setCiudadFiltro(e.target.value)}>
+            <option value="todas">Todas las ciudades</option>
+            <option value="El Alto">El Alto</option>
+            <option value="Tarija">Tarija</option>
+          </select>
+        )}
+      </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         {isAdmin && (
@@ -60,6 +89,13 @@ export default function PlanesPage() {
             <div>
               <label className="label">Nombre</label>
               <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} required />
+            </div>
+            <div>
+              <label className="label">Ciudad / Sucursal</label>
+              <select className="input" value={form.ciudad} onChange={(e) => setForm({ ...form, ciudad: e.target.value })} required>
+                <option value="El Alto">El Alto</option>
+                <option value="Tarija">Tarija</option>
+              </select>
             </div>
             <div>
               <label className="label">Velocidad</label>
@@ -111,6 +147,7 @@ export default function PlanesPage() {
             <thead>
               <tr className="text-left text-brand-500 border-b border-brand-100">
                 <th className="py-2">Plan</th>
+                <th className="py-2">Ciudad</th>
                 <th className="py-2">Velocidad</th>
                 <th className="py-2">Frecuencia</th>
                 <th className="py-2">Precio</th>
@@ -119,9 +156,10 @@ export default function PlanesPage() {
               </tr>
             </thead>
             <tbody>
-              {planes.map((p) => (
+              {filtrados.map((p) => (
                 <tr key={p.id} className="border-b border-brand-50">
                   <td className="py-2 font-medium">{p.nombre}</td>
+                  <td className="py-2">{p.ciudad || 'El Alto'}</td>
                   <td className="py-2">{p.velocidad}</td>
                   <td className="py-2">{p.frecuencia}</td>
                   <td className="py-2">{formatBs(p.precio)}</td>
@@ -132,7 +170,14 @@ export default function PlanesPage() {
                         className="text-brand-600 hover:underline"
                         onClick={() => {
                           setEditId(p.id);
-                          setForm({ nombre: p.nombre, velocidad: p.velocidad || '', frecuencia: p.frecuencia || 'Mensual', precio: p.precio, perfil_mikrotik: p.perfil_mikrotik || '' });
+                          setForm({
+                            nombre: p.nombre,
+                            velocidad: p.velocidad || '',
+                            frecuencia: p.frecuencia || 'Mensual',
+                            precio: p.precio,
+                            perfil_mikrotik: p.perfil_mikrotik || '',
+                            ciudad: p.ciudad || 'El Alto',
+                          });
                         }}
                       >
                         Editar
@@ -144,6 +189,13 @@ export default function PlanesPage() {
                   )}
                 </tr>
               ))}
+              {filtrados.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 7 : 6} className="py-4 text-brand-400">
+                    No hay planes para esta ciudad todavía.
+                  </td>
+                </tr>
+              )}
             </tbody>
           </table>
         </div>

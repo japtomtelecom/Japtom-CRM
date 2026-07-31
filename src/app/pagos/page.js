@@ -4,10 +4,12 @@ import { useEffect, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
+import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs, parsearFechaLocal } from '@/lib/utils';
 
 export default function PagosPage() {
   const { isAdmin } = usePerfil();
+  const { sucursalActiva, esFija } = useSucursalActiva();
   const [pagos, setPagos] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -18,19 +20,29 @@ export default function PagosPage() {
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '' });
+  const [ciudadFiltro, setCiudadFiltro] = useState('todas');
+
+  useEffect(() => {
+    if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
+  }, [sucursalActiva]);
 
   async function cargarPagos() {
     const { data } = await supabase
       .from('pagos')
-      .select('id, fecha_pago, monto, clientes(codigo, nombre)')
+      .select('id, fecha_pago, monto, clientes(codigo, nombre, ciudad)')
       .order('fecha_pago', { ascending: false })
-      .limit(50);
+      .limit(200);
     setPagos(data || []);
   }
 
   useEffect(() => {
     cargarPagos();
   }, []);
+
+  const pagosFiltrados =
+    ciudadFiltro === 'todas'
+      ? pagos
+      : pagos.filter((p) => (p.clientes?.ciudad || 'El Alto') === ciudadFiltro);
 
   function empezarEdicion(p) {
     setEditandoId(p.id);
@@ -68,11 +80,13 @@ export default function PagosPage() {
       setClientes([]);
       return;
     }
-    const { data } = await supabase
+    let query = supabase
       .from('clientes')
-      .select('id, codigo, nombre, precio')
+      .select('id, codigo, nombre, precio, ciudad')
       .ilike('nombre', `%${q}%`)
       .limit(8);
+    if (ciudadFiltro !== 'todas') query = query.eq('ciudad', ciudadFiltro);
+    const { data } = await query;
     setClientes(data || []);
   }
 
@@ -101,7 +115,20 @@ export default function PagosPage() {
 
   return (
     <AppShell>
-      <h1 className="font-display text-2xl font-bold text-brand-800 mb-6">Pagos</h1>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+        <h1 className="font-display text-2xl font-bold text-brand-800">Pagos</h1>
+        {esFija ? (
+          <span className="input md:max-w-[180px] flex items-center bg-brand-50 text-brand-600">
+            📍 {ciudadFiltro}
+          </span>
+        ) : (
+          <select className="input md:max-w-[180px]" value={ciudadFiltro} onChange={(e) => setCiudadFiltro(e.target.value)}>
+            <option value="todas">Todas las ciudades</option>
+            <option value="El Alto">El Alto</option>
+            <option value="Tarija">Tarija</option>
+          </select>
+        )}
+      </div>
 
       <div className="grid md:grid-cols-3 gap-6">
         <div className="card p-5 md:col-span-1 h-fit">
@@ -135,7 +162,9 @@ export default function PagosPage() {
                 </div>
               )}
               {seleccionado && (
-                <div className="text-xs text-brand-500 mt-1">Cliente: {seleccionado.codigo}</div>
+                <div className="text-xs text-brand-500 mt-1">
+                  Cliente: {seleccionado.codigo} · {seleccionado.ciudad || 'El Alto'}
+                </div>
               )}
             </div>
             <div>
@@ -160,12 +189,13 @@ export default function PagosPage() {
               <tr className="text-left text-brand-500 border-b border-brand-100">
                 <th className="py-2">Fecha</th>
                 <th className="py-2">Cliente</th>
+                <th className="py-2">Ciudad</th>
                 <th className="py-2">Monto</th>
                 {isAdmin && <th className="py-2"></th>}
               </tr>
             </thead>
             <tbody>
-              {pagos.map((p) => (
+              {pagosFiltrados.map((p) => (
                 <tr key={p.id} className="border-b border-brand-50">
                   {editandoId === p.id ? (
                     <>
@@ -181,6 +211,7 @@ export default function PagosPage() {
                         {p.clientes?.nombre}{' '}
                         <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
                       </td>
+                      <td className="py-2">{p.clientes?.ciudad || 'El Alto'}</td>
                       <td className="py-2">
                         <input
                           type="number"
@@ -206,27 +237,4 @@ export default function PagosPage() {
                       <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
                       <td className="py-2">
                         {p.clientes?.nombre}{' '}
-                        <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
-                      </td>
-                      <td className="py-2">{formatBs(p.monto)}</td>
-                      {isAdmin && (
-                        <td className="py-2 text-right whitespace-nowrap">
-                          <button onClick={() => empezarEdicion(p)} className="text-brand-600 hover:underline text-xs mr-3">
-                            Editar
-                          </button>
-                          <button onClick={() => borrarPago(p.id, formatBs(p.monto))} className="text-red-500 hover:underline text-xs">
-                            Borrar
-                          </button>
-                        </td>
-                      )}
-                    </>
-                  )}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </AppShell>
-  );
-}
+                        <span
