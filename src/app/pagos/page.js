@@ -237,4 +237,35 @@ export default function PagosPage() {
                       <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
                       <td className="py-2">
                         {p.clientes?.nombre}{' '}
-                        <span
+                        <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
+                      </td>
+                      <td className="py-2">{p.clientes?.ciudad || 'El Alto'}</td>
+                      <td className="py-2">{formatBs(p.monto)}</td>
+                      {isAdmin && (
+                        <td className="py-2 text-right whitespace-nowrap">
+                          <button onClick={() => empezarEdicion(p)} className="text-brand-600 hover:underline text-xs mr-3">
+                            Editar
+                          </button>
+                          <button onClick={() => borrarPago(p.id, formatBs(p.monto))} className="text-red-500 hover:underline text-xs">
+                            Borrar
+                          </button>
+                        </td>
+                      )}
+                    </>
+                  )}
+                </tr>
+              ))}
+              {pagosFiltrados.length === 0 && (
+                <tr>
+                  <td colSpan={isAdmin ? 5 : 4} className="py-4 text-brand-400">
+                    No hay pagos para esta ciudad todavía.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </AppShell>
+  );
+}
