@@ -5,17 +5,16 @@ import { configMikrotik } from '@/lib/mikrotikConfig';
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
-
   const { clienteId } = await request.json();
   if (!clienteId) return Response.json({ error: 'Falta clienteId.' }, { status: 400 });
 
   const { data: cliente, error: errCliente } = await auth.supabaseAdmin
     .from('clientes')
-    .select('codigo, pppoe_usuario, pppoe_password, plan, nombre, ciudad, activo')
+    .select('codigo, pppoe_usuario, pppoe_password, plan, nombre, ciudad, activo, ip_asignada')
     .eq('id', clienteId)
     .single();
-
   if (errCliente || !cliente) return Response.json({ error: 'Cliente no encontrado.' }, { status: 404 });
+
   if (!cliente.pppoe_usuario || !cliente.pppoe_password) {
     return Response.json(
       { error: 'Este cliente necesita "Usuario PPPoE" y "Contraseña PPPoE" completos en su ficha antes de crearlo en el MikroTik.' },
@@ -35,7 +34,6 @@ export async function POST(request) {
     conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
     await conn.connect();
 
-    // Evita crear un duplicado si el usuario ya existe en ese router
     const existentes = await conn.write('/ppp/secret/print', [`?name=${cliente.pppoe_usuario}`]);
     if (existentes.length) {
       conn.close();
@@ -55,13 +53,18 @@ export async function POST(request) {
     if (planCatalogo?.perfil_mikrotik) {
       params.push(`=profile=${planCatalogo.perfil_mikrotik}`);
     }
+    if (cliente.ip_asignada) {
+      params.push(`=remote-address=${cliente.ip_asignada}`);
+    }
 
     await conn.write('/ppp/secret/add', params);
     conn.close();
 
     return Response.json({
       ok: true,
-      mensaje: `Usuario PPPoE "${cliente.pppoe_usuario}" creado en el MikroTik de ${cliente.ciudad}.`,
+      mensaje: `Usuario PPPoE "${cliente.pppoe_usuario}" creado en el MikroTik de ${cliente.ciudad}${
+        cliente.ip_asignada ? ` con IP ${cliente.ip_asignada}` : ''
+      }.`,
     });
   } catch (e) {
     if (conn) try { conn.close(); } catch {}
