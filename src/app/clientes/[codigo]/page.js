@@ -288,6 +288,8 @@ export default function FichaClientePage() {
                 <dd>{cliente.activo ? 'Sí' : 'No'}</dd>
                 <dt className="text-brand-500">Usuario PPPoE</dt>
                 <dd>{cliente.pppoe_usuario || '—'}</dd>
+ <dt className="text-brand-500">IP asignada</dt>
+                <dd>{cliente.ip_asignada || '—'}</dd>
               </dl>
             ) : (
               <div className="grid grid-cols-2 gap-4">
@@ -340,6 +342,15 @@ export default function FichaClientePage() {
                 <div>
                   <label className="label">Contraseña PPPoE</label>
                   <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })} placeholder="Solo se usa para crearlo en el MikroTik" />
+                </div>
+ <div>
+                  <label className="label">IP a asignar</label>
+                  <input
+                    className="input"
+                    value={form.ip_asignada || ''}
+                    onChange={(e) => setForm({ ...form, ip_asignada: e.target.value })}
+                    placeholder="Ej: 10.1.20.4"
+                  />
                 </div>
                 <div className="col-span-2">
                   <label className="label">Dirección</label>
