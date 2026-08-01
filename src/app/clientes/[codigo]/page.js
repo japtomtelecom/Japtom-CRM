@@ -11,7 +11,7 @@ import { generarTicketFalla } from '@/lib/generarTicket';
 export default function FichaClientePage() {
   const { codigo } = useParams();
   const router = useRouter();
-  const { isAdmin } = usePerfil();
+  const { isAdmin, puedeGestionar } = usePerfil();
   const [cliente, setCliente] = useState(null);
   const [pagos, setPagos] = useState([]);
   const [config, setConfig] = useState({});
@@ -171,7 +171,8 @@ export default function FichaClientePage() {
   async function sincronizarPlan() {
     await llamarMikrotik('cambiar-plan', { clienteId: cliente.id });
   }
-async function cerrarSesionMikrotik() {
+
+  async function cerrarSesionMikrotik() {
     if (!confirm(`¿Cerrar la sesión PPPoE activa de ${cliente.nombre}? El cliente se desconectará y su router/equipo intentará reconectarse solo.`)) return;
     await llamarMikrotik('cerrar-sesion', { clienteId: cliente.id });
   }
@@ -229,9 +230,11 @@ async function cerrarSesionMikrotik() {
           <button onClick={() => setMostrarTicket((v) => !v)} className="btn-secondary">
             🎫 Ticket de falla
           </button>
-          <button onClick={() => setEditando((v) => !v)} className="btn-secondary">
-            {editando ? 'Cancelar' : 'Editar'}
-          </button>
+          {puedeGestionar && (
+            <button onClick={() => setEditando((v) => !v)} className="btn-secondary">
+              {editando ? 'Cancelar' : 'Editar'}
+            </button>
+          )}
           {isAdmin && (
             <button onClick={borrarCliente} className="btn-secondary text-red-500 border-red-200 hover:bg-red-50">
               Eliminar
@@ -271,7 +274,7 @@ async function cerrarSesionMikrotik() {
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Datos del cliente</h2>
             {!editando ? (
-             <dl className="grid grid-cols-2 gap-y-3 text-sm">
+              <dl className="grid grid-cols-2 gap-y-3 text-sm">
                 <dt className="text-brand-500">Teléfono</dt>
                 <dd>{cliente.telefono || '—'}</dd>
                 <dt className="text-brand-500">Ciudad</dt>
@@ -349,7 +352,7 @@ async function cerrarSesionMikrotik() {
                   <label className="label">Contraseña PPPoE</label>
                   <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })} placeholder="Solo se usa para crearlo en el MikroTik" />
                 </div>
- <div>
+                <div>
                   <label className="label">IP a asignar</label>
                   <input
                     className="input"
@@ -451,34 +454,36 @@ async function cerrarSesionMikrotik() {
         </div>
 
         <div className="space-y-6">
-          <div className="card p-5">
-            <h2 className="font-semibold text-brand-700 mb-3">Registrar pago</h2>
-            <form onSubmit={registrarPago} className="space-y-3">
-              <div>
-                <label className="label">Fecha</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={nuevoPago.fecha}
-                  onChange={(e) => setNuevoPago({ ...nuevoPago, fecha: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label">Monto (Bs)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="input"
-                  placeholder={cliente.precio}
-                  value={nuevoPago.monto}
-                  onChange={(e) => setNuevoPago({ ...nuevoPago, monto: e.target.value })}
-                />
-              </div>
-              <button type="submit" disabled={guardando} className="btn-primary w-full">
-                {guardando ? 'Registrando…' : 'Registrar pago'}
-              </button>
-            </form>
-          </div>
+          {puedeGestionar && (
+            <div className="card p-5">
+              <h2 className="font-semibold text-brand-700 mb-3">Registrar pago</h2>
+              <form onSubmit={registrarPago} className="space-y-3">
+                <div>
+                  <label className="label">Fecha</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={nuevoPago.fecha}
+                    onChange={(e) => setNuevoPago({ ...nuevoPago, fecha: e.target.value })}
+                  />
+                </div>
+                <div>
+                  <label className="label">Monto (Bs)</label>
+                  <input
+                    type="number"
+                    step="0.01"
+                    className="input"
+                    placeholder={cliente.precio}
+                    value={nuevoPago.monto}
+                    onChange={(e) => setNuevoPago({ ...nuevoPago, monto: e.target.value })}
+                  />
+                </div>
+                <button type="submit" disabled={guardando} className="btn-primary w-full">
+                  {guardando ? 'Registrando…' : 'Registrar pago'}
+                </button>
+              </form>
+            </div>
+          )}
 
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Vista previa del mensaje</h2>
@@ -513,7 +518,7 @@ async function cerrarSesionMikrotik() {
                   <button onClick={sincronizarPlan} disabled={mikrotikCargando} className="btn-secondary w-full">
                     🔄 Sincronizar plan al MikroTik
                   </button>
-<button
+                  <button
                     onClick={cerrarSesionMikrotik}
                     disabled={mikrotikCargando}
                     className="btn-secondary w-full text-orange-600 border-orange-200 hover:bg-orange-50"
