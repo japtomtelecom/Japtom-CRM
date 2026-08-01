@@ -8,7 +8,7 @@ import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs, parsearFechaLocal } from '@/lib/utils';
 
 export default function PagosPage() {
-  const { isAdmin } = usePerfil();
+  const { isAdmin, puedeGestionar } = usePerfil();
   const { sucursalActiva, esFija } = useSucursalActiva();
   const [pagos, setPagos] = useState([]);
   const [clientes, setClientes] = useState([]);
@@ -131,56 +131,58 @@ export default function PagosPage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6">
-        <div className="card p-5 md:col-span-1 h-fit">
-          <h2 className="font-semibold text-brand-700 mb-3">Registrar pago rápido</h2>
-          <form onSubmit={registrar} className="space-y-3">
-            <div>
-              <label className="label">Buscar cliente</label>
-              <input
-                className="input"
-                placeholder="Nombre del cliente…"
-                value={busqueda}
-                onChange={(e) => buscarClientes(e.target.value)}
-              />
-              {clientes.length > 0 && !seleccionado && (
-                <div className="border border-brand-100 rounded-lg mt-1 max-h-48 overflow-y-auto">
-                  {clientes.map((c) => (
-                    <button
-                      type="button"
-                      key={c.id}
-                      onClick={() => {
-                        setSeleccionado(c);
-                        setMonto(c.precio || '');
-                        setBusqueda(c.nombre);
-                        setClientes([]);
-                      }}
-                      className="block w-full text-left px-3 py-2 text-sm hover:bg-brand-50"
-                    >
-                      {c.nombre} <span className="text-brand-400 font-mono text-xs">({c.codigo})</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-              {seleccionado && (
-                <div className="text-xs text-brand-500 mt-1">
-                  Cliente: {seleccionado.codigo} · {seleccionado.ciudad || 'El Alto'}
-                </div>
-              )}
-            </div>
-            <div>
-              <label className="label">Fecha</label>
-              <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Monto (Bs)</label>
-              <input type="number" step="0.01" className="input" value={monto} onChange={(e) => setMonto(e.target.value)} />
-            </div>
-            <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
-              {guardando ? 'Registrando…' : 'Registrar pago'}
-            </button>
-            {msg && <p className="text-sm text-brand-600">{msg}</p>}
-          </form>
-        </div>
+        {puedeGestionar && (
+          <div className="card p-5 md:col-span-1 h-fit">
+            <h2 className="font-semibold text-brand-700 mb-3">Registrar pago rápido</h2>
+            <form onSubmit={registrar} className="space-y-3">
+              <div>
+                <label className="label">Buscar cliente</label>
+                <input
+                  className="input"
+                  placeholder="Nombre del cliente…"
+                  value={busqueda}
+                  onChange={(e) => buscarClientes(e.target.value)}
+                />
+                {clientes.length > 0 && !seleccionado && (
+                  <div className="border border-brand-100 rounded-lg mt-1 max-h-48 overflow-y-auto">
+                    {clientes.map((c) => (
+                      <button
+                        type="button"
+                        key={c.id}
+                        onClick={() => {
+                          setSeleccionado(c);
+                          setMonto(c.precio || '');
+                          setBusqueda(c.nombre);
+                          setClientes([]);
+                        }}
+                        className="block w-full text-left px-3 py-2 text-sm hover:bg-brand-50"
+                      >
+                        {c.nombre} <span className="text-brand-400 font-mono text-xs">({c.codigo})</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {seleccionado && (
+                  <div className="text-xs text-brand-500 mt-1">
+                    Cliente: {seleccionado.codigo} · {seleccionado.ciudad || 'El Alto'}
+                  </div>
+                )}
+              </div>
+              <div>
+                <label className="label">Fecha</label>
+                <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Monto (Bs)</label>
+                <input type="number" step="0.01" className="input" value={monto} onChange={(e) => setMonto(e.target.value)} />
+              </div>
+              <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
+                {guardando ? 'Registrando…' : 'Registrar pago'}
+              </button>
+              {msg && <p className="text-sm text-brand-600">{msg}</p>}
+            </form>
+          </div>
+        )}
 
         <div className="card p-5 md:col-span-2">
           <h2 className="font-semibold text-brand-700 mb-3">Últimos pagos</h2>
