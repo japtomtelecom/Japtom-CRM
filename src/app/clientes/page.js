@@ -114,20 +114,21 @@ export default function ClientesPage() {
               <th className="p-3">Precio</th>
               <th className="p-3">Día de pago</th>
               <th className="p-3">Estado</th>
+              <th className="p-3">Vence</th>
               <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={8} className="p-4 text-brand-400">
+                <td colSpan={9} className="p-4 text-brand-400">
                   Cargando…
                 </td>
               </tr>
             )}
             {!loading && filtrados.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-4 text-brand-400">
+                <td colSpan={9} className="p-4 text-brand-400">
                   No se encontraron clientes.
                 </td>
               </tr>
@@ -140,6 +141,7 @@ export default function ClientesPage() {
                 <td className="p-3">{c.plan || '—'}</td>
                 <td className="p-3">{formatBs(c.precio)}</td>
                 <td className="p-3">{c.dia_pago ?? '—'}</td>
+            <td className="p-3">{c.fecha_vencimiento ? new Date(c.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-BO') : '—'}</td>
                 <td className="p-3">
                   <Badge cliente={c} />
                 </td>
