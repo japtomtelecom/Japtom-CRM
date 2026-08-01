@@ -55,22 +55,36 @@ export default function AppShell({ children }) {
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       <aside className="md:w-56 bg-brand-700 text-white flex flex-col md:flex-col shrink-0">
-        {/* Barra superior SOLO en celular: logo + cerrar sesión siempre visibles */}
-        <div className="flex md:hidden items-center justify-between px-4 py-3">
-          <div className="flex items-center gap-2">
+        {/* Barra superior SOLO en celular: logo + selector de ciudad + cerrar sesión siempre visibles */}
+        <div className="flex md:hidden items-center justify-between px-4 py-3 gap-2">
+          <div className="flex items-center gap-2 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" className="w-7 h-7" />
-            <span className="font-display font-bold text-sm">JapTom</span>
-            <span className="text-brand-200 text-xs">
-              · {sucursalActiva === 'Todas' ? 'Ambas' : sucursalActiva}
-            </span>
+            <img src="/logo.png" alt="" className="w-7 h-7 shrink-0" />
+            <span className="font-display font-bold text-sm shrink-0">JapTom</span>
           </div>
-          <button
-            onClick={() => supabase.auth.signOut()}
-            className="text-xs bg-brand-600 hover:bg-brand-500 px-3 py-1.5 rounded-lg"
-          >
-            🚪 Salir
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            {esFija ? (
+              <span className="text-sm font-semibold bg-brand-600 px-3 py-1.5 rounded-lg">
+                📍 {sucursalActiva}
+              </span>
+            ) : (
+              <button
+                onClick={() => {
+                  olvidar();
+                  router.push('/elegir-sucursal');
+                }}
+                className="text-sm font-semibold bg-brand-600 hover:bg-brand-500 px-3 py-1.5 rounded-lg"
+              >
+                📍 {sucursalActiva === 'Todas' ? 'Ambas' : sucursalActiva}
+              </button>
+            )}
+            <button
+              onClick={() => supabase.auth.signOut()}
+              className="text-xs bg-brand-600 hover:bg-brand-500 px-3 py-1.5 rounded-lg"
+            >
+              🚪 Salir
+            </button>
+          </div>
         </div>
 
         <div className="p-4 hidden md:flex items-center gap-2">
@@ -101,17 +115,20 @@ export default function AppShell({ children }) {
         <div className="px-4 py-2 text-xs text-brand-200 hidden md:block">
           {user.email} · {isAdmin ? 'Administrador' : 'Cobrador'}
         </div>
-        <div className="px-4 py-2 text-xs hidden md:flex items-center justify-between gap-2">
-          <span className="text-brand-100">📍 {sucursalActiva === 'Todas' ? 'Ambas sucursales' : sucursalActiva}</span>
-          {!esFija && (
+        <div className="px-4 py-3 hidden md:block">
+          {esFija ? (
+            <span className="block text-center text-sm font-semibold bg-brand-600 px-3 py-2 rounded-lg">
+              📍 {sucursalActiva}
+            </span>
+          ) : (
             <button
               onClick={() => {
                 olvidar();
                 router.push('/elegir-sucursal');
               }}
-              className="text-brand-200 underline hover:text-white"
+              className="w-full text-center text-sm font-semibold bg-brand-600 hover:bg-brand-500 px-3 py-2 rounded-lg"
             >
-              Cambiar
+              📍 {sucursalActiva === 'Todas' ? 'Ambas sucursales' : sucursalActiva} · Cambiar
             </button>
           )}
         </div>
