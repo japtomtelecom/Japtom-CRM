@@ -271,13 +271,15 @@ async function cerrarSesionMikrotik() {
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Datos del cliente</h2>
             {!editando ? (
-              <dl className="grid grid-cols-2 gap-y-3 text-sm">
+             <dl className="grid grid-cols-2 gap-y-3 text-sm">
                 <dt className="text-brand-500">Teléfono</dt>
                 <dd>{cliente.telefono || '—'}</dd>
                 <dt className="text-brand-500">Ciudad</dt>
                 <dd>{cliente.ciudad || 'El Alto'}</dd>
                 <dt className="text-brand-500">Día de pago</dt>
                 <dd>{cliente.dia_pago ?? '—'}</dd>
+                <dt className="text-brand-500">Vence</dt>
+                <dd>{cliente.fecha_vencimiento ? new Date(cliente.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-BO') : '—'}</dd>
                 <dt className="text-brand-500">Plan</dt>
                 <dd>{cliente.plan || '—'}</dd>
                 <dt className="text-brand-500">Velocidad</dt>
@@ -292,7 +294,7 @@ async function cerrarSesionMikrotik() {
                 <dd>{cliente.activo ? 'Sí' : 'No'}</dd>
                 <dt className="text-brand-500">Usuario PPPoE</dt>
                 <dd>{cliente.pppoe_usuario || '—'}</dd>
- <dt className="text-brand-500">IP asignada</dt>
+                <dt className="text-brand-500">IP asignada</dt>
                 <dd>{cliente.ip_asignada || '—'}</dd>
               </dl>
             ) : (
