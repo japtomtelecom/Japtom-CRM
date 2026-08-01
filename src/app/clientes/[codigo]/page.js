@@ -171,6 +171,10 @@ export default function FichaClientePage() {
   async function sincronizarPlan() {
     await llamarMikrotik('cambiar-plan', { clienteId: cliente.id });
   }
+async function cerrarSesionMikrotik() {
+    if (!confirm(`¿Cerrar la sesión PPPoE activa de ${cliente.nombre}? El cliente se desconectará y su router/equipo intentará reconectarse solo.`)) return;
+    await llamarMikrotik('cerrar-sesion', { clienteId: cliente.id });
+  }
 
   async function crearUsuarioMikrotik() {
     if (!confirm(`¿Crear el usuario PPPoE "${cliente.pppoe_usuario}" en el MikroTik de ${cliente.ciudad}?`)) return;
@@ -506,6 +510,13 @@ export default function FichaClientePage() {
                   </button>
                   <button onClick={sincronizarPlan} disabled={mikrotikCargando} className="btn-secondary w-full">
                     🔄 Sincronizar plan al MikroTik
+                  </button>
+<button
+                    onClick={cerrarSesionMikrotik}
+                    disabled={mikrotikCargando}
+                    className="btn-secondary w-full text-orange-600 border-orange-200 hover:bg-orange-50"
+                  >
+                    🔌 Cerrar sesión activa
                   </button>
                 </div>
               )}
