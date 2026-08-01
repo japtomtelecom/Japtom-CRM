@@ -64,7 +64,7 @@ export default function ClientesPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="font-display text-2xl font-bold text-brand-800">Clientes</h1>
-          <p className="text-brand-500 text-sm">{clientes.length} clientes registrados</p>
+          <p className="text-brand-500 text-sm">{filtrados.length} clientes registrados</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => exportarExcel()} className="btn-secondary">
