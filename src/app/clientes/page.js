@@ -19,6 +19,7 @@ function Badge({ cliente }) {
 }
 
 export default function ClientesPage() {
+const { puedeGestionar } = usePerfil();
   const { sucursalActiva, esFija } = useSucursalActiva();
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -70,9 +71,11 @@ export default function ClientesPage() {
           <button onClick={() => exportarExcel()} className="btn-secondary">
             ⬇️ Excel
           </button>
-          <Link href="/clientes/nuevo" className="btn-primary">
-            + Agregar cliente
-          </Link>
+                {puedeGestionar && (
+            <Link href="/clientes/nuevo" className="btn-primary">
+              + Agregar cliente
+            </Link>
+          )}
         </div>
       </div>
 
