@@ -185,8 +185,8 @@ export default function ClientesPage() {
                     <Badge cliente={c} />
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    {wa && (
-                      
+                     {wa && (
+                      <a
                         href={wa}
                         target="_blank"
                         rel="noreferrer"
