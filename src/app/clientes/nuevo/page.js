@@ -14,6 +14,8 @@ export default function NuevoClientePage() {
     codigo: '',
     nombre: '',
     telefono: '',
+    ci: '',
+    costo_instalacion: '',
     dia_pago: '',
     activo: true,
     plan: '',
@@ -64,6 +66,7 @@ export default function NuevoClientePage() {
       ...form,
       dia_pago: form.dia_pago ? Number(form.dia_pago) : null,
       precio: form.precio ? Number(form.precio) : 0,
+      costo_instalacion: form.costo_instalacion ? Number(form.costo_instalacion) : null,
     });
     setGuardando(false);
     if (error) {
@@ -109,6 +112,14 @@ export default function NuevoClientePage() {
           <div>
             <label className="label">Teléfono</label>
             <input className="input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">CI (Cédula de identidad)</label>
+            <input className="input" value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })} placeholder="Ej: 3321656 LP" />
+          </div>
+          <div>
+            <label className="label">Costo de instalación (Bs)</label>
+            <input type="number" className="input" value={form.costo_instalacion} onChange={(e) => setForm({ ...form, costo_instalacion: e.target.value })} placeholder="200" />
           </div>
           <div>
             <label className="label">Día de pago</label>
