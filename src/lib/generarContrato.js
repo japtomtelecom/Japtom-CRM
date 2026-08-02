@@ -176,6 +176,7 @@ export async function generarContrato(cliente, empresaNombre = 'JapTom Telecom')
   );
   y += 3;
   y = verificarSalto(doc, y);
+  doc.setFont('helvetica', 'bold');
   y = parrafo(
     doc,
     'd) Los equipos proporcionados son en calidad de préstamo, en caso se resuelva dar de baja los equipos tienen que ser devueltos. Si el equipo sufre algún daño el abonado se hace enteramente responsable de la reposición del mismo, teniendo un costo de Bs. 500 en el caso de no cancelar, no se podrá restablecer el servicio.',
@@ -183,6 +184,7 @@ export async function generarContrato(cliente, empresaNombre = 'JapTom Telecom')
     y,
     anchoUtil
   );
+  doc.setFont('helvetica', 'normal');
   y += 3;
   y = verificarSalto(doc, y);
   y = parrafo(
