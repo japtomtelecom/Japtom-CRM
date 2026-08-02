@@ -7,6 +7,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { formatBs, linkWhatsApp, construirMensaje, parsearFechaLocal } from '@/lib/utils';
 import { generarTicketFalla } from '@/lib/generarTicket';
+import { generarContrato } from '@/lib/generarContrato';
 
 export default function FichaClientePage() {
   const { codigo } = useParams();
@@ -189,6 +190,10 @@ export default function FichaClientePage() {
     setMostrarTicket(false);
     setMotivoFalla('');
   }
+async function generarContratoPdf() {
+    if (!confirm(`¿Generar el contrato de servicio para ${cliente.nombre}?`)) return;
+    await generarContrato(cliente, config.empresa_nombre);
+  }
 
   if (!cliente) {
     return (
@@ -232,6 +237,8 @@ export default function FichaClientePage() {
           )}
           <button onClick={() => setMostrarTicket((v) => !v)} className="btn-secondary">
             🎫 Ticket de falla
+          </button><button onClick={generarContratoPdf} className="btn-secondary">
+            📄 Generar contrato
           </button>
           {puedeGestionar && (
             <button onClick={() => setEditando((v) => !v)} className="btn-secondary">
