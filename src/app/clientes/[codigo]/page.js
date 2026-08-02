@@ -20,6 +20,8 @@ export default function FichaClientePage() {
   const [form, setForm] = useState(null);
   const [nuevoPago, setNuevoPago] = useState({ fecha: new Date().toISOString().slice(0, 10), monto: '', tipo: 'Mensualidad' });
   const [mostrarTicket, setMostrarTicket] = useState(false);
+  const [mostrarContrato, setMostrarContrato] = useState(false);
+  const [fechaContrato, setFechaContrato] = useState(new Date().toISOString().slice(0, 10));
   const [motivoFalla, setMotivoFalla] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
@@ -190,9 +192,11 @@ export default function FichaClientePage() {
     setMostrarTicket(false);
     setMotivoFalla('');
   }
-async function generarContratoPdf() {
-    if (!confirm(`¿Generar el contrato de servicio para ${cliente.nombre}?`)) return;
-    await generarContrato(cliente, config.empresa_nombre);
+
+  async function generarContratoPdf() {
+    if (!confirm(`¿Generar el contrato de servicio para ${cliente.nombre} con fecha ${fechaContrato}?`)) return;
+    await generarContrato(cliente, config.empresa_nombre, fechaContrato);
+    setMostrarContrato(false);
   }
 
   if (!cliente) {
@@ -237,7 +241,8 @@ async function generarContratoPdf() {
           )}
           <button onClick={() => setMostrarTicket((v) => !v)} className="btn-secondary">
             🎫 Ticket de falla
-          </button><button onClick={generarContratoPdf} className="btn-secondary">
+          </button>
+          <button onClick={() => setMostrarContrato((v) => !v)} className="btn-secondary">
             📄 Generar contrato
           </button>
           {puedeGestionar && (
@@ -254,6 +259,27 @@ async function generarContratoPdf() {
       </div>
 
       {msg && <div className="card p-3 mb-4 text-red-600 text-sm">{msg}</div>}
+
+      {mostrarContrato && (
+        <div className="card p-5 mb-6">
+          <h2 className="font-semibold text-brand-700 mb-3">Generar contrato</h2>
+          <label className="label">Fecha de firma</label>
+          <input
+            type="date"
+            className="input mb-3"
+            value={fechaContrato}
+            onChange={(e) => setFechaContrato(e.target.value)}
+          />
+          <div className="flex gap-2">
+            <button onClick={generarContratoPdf} className="btn-primary">
+              📄 Descargar PDF
+            </button>
+            <button onClick={() => setMostrarContrato(false)} className="btn-secondary">
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
 
       {mostrarTicket && (
         <div className="card p-5 mb-6">
