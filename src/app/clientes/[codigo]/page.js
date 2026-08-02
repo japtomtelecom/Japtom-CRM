@@ -317,6 +317,8 @@ export default function FichaClientePage() {
                 <dd>{cliente.ci || '—'}</dd>
                 <dt className="text-brand-500">Costo de instalación</dt>
                 <dd>{cliente.costo_instalacion ? formatBs(cliente.costo_instalacion) : '—'}</dd>
+                <dt className="text-brand-500">Vencimiento manual</dt>
+                <dd>{cliente.fecha_vencimiento_manual ? new Date(cliente.fecha_vencimiento_manual + 'T00:00:00').toLocaleDateString('es-BO') + ' (fijo)' : '—'}</dd>
                 <dt className="text-brand-500">Ciudad</dt>
                 <dd>{cliente.ciudad || 'El Alto'}</dd>
                 <dt className="text-brand-500">Día de pago</dt>
@@ -357,6 +359,16 @@ export default function FichaClientePage() {
                 <div>
                   <label className="label">Costo de instalación (Bs)</label>
                   <input type="number" className="input" value={form.costo_instalacion || ''} onChange={(e) => setForm({ ...form, costo_instalacion: Number(e.target.value) })} placeholder="200" />
+                </div>
+                <div>
+                  <label className="label">Vencimiento manual (opcional, para casos VIP)</label>
+                  <input
+                    type="date"
+                    className="input"
+                    value={form.fecha_vencimiento_manual || ''}
+                    onChange={(e) => setForm({ ...form, fecha_vencimiento_manual: e.target.value || null })}
+                  />
+                  <p className="text-xs text-brand-400 mt-1">Si lo dejas vacío, se calcula automáticamente según el último pago.</p>
                 </div>
                 <div>
                   <label className="label">Ciudad</label>
