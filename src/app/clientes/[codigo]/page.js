@@ -51,7 +51,7 @@ export default function FichaClientePage() {
 
   async function guardarEdicion() {
     setGuardando(true);
-    const { id, estado, pagado_mes_actual, created_at, ...actualizables } = form;
+const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_at, ...actualizables } = form;
     const { error } = await supabase.from('clientes').update(actualizables).eq('id', id);
     setGuardando(false);
     if (!error) {
