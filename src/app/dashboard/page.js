@@ -32,7 +32,7 @@ export default function DashboardPage() {
     async function load() {
       const [{ data: c, error: e1 }, { data: p, error: e2 }] = await Promise.all([
         supabase.from('v_clientes_estado').select('*'),
-        supabase.from('pagos').select('monto, fecha_pago, clientes(ciudad)'),
+        supabase.from('pagos').select('monto, fecha_pago, tipo, clientes(ciudad)'),
       ]);
       if (e1 || e2) setError((e1 || e2).message);
       setClientes(c || []);
@@ -52,9 +52,15 @@ export default function DashboardPage() {
       return f.getFullYear() === hoy.getFullYear() && f.getMonth() === hoy.getMonth();
     };
 
-    const cobradoMes = pagosF.filter((p) => esMesActual(p.fecha_pago)).reduce((a, p) => a + Number(p.monto), 0);
-    const ingresoHistorico = pagosF.reduce((a, p) => a + Number(p.monto), 0);
-    const ticketPromedio = pagosF.length ? ingresoHistorico / pagosF.length : 0;
+    const pagosMensualidad = pagosF.filter((p) => p.tipo !== 'Instalacion');
+    const pagosInstalacion = pagosF.filter((p) => p.tipo === 'Instalacion');
+
+    const cobradoMes = pagosMensualidad
+      .filter((p) => esMesActual(p.fecha_pago))
+      .reduce((a, p) => a + Number(p.monto), 0);
+    const ingresoHistorico = pagosMensualidad.reduce((a, p) => a + Number(p.monto), 0);
+    const ingresoInstalaciones = pagosInstalacion.reduce((a, p) => a + Number(p.monto), 0);
+    const ticketPromedio = pagosMensualidad.length ? ingresoHistorico / pagosMensualidad.length : 0;
 
     return {
       total_clientes: clientesF.length,
@@ -64,6 +70,7 @@ export default function DashboardPage() {
       clientes_vencidos: clientesF.filter((c) => c.activo && c.estado === 'Vencido').length,
       cobrado_mes_actual: cobradoMes,
       ingreso_historico: ingresoHistorico,
+      ingreso_instalaciones: ingresoInstalaciones,
       ticket_promedio: ticketPromedio,
     };
   }, [clientes, pagos, ciudad]);
@@ -100,7 +107,8 @@ export default function DashboardPage() {
           <StatCard label="Al día" value={kpi.clientes_al_dia} />
           <StatCard label="Vencidos" value={kpi.clientes_vencidos} />
           <StatCard label="Cobrado este mes" value={formatBs(kpi.cobrado_mes_actual)} accent />
-          <StatCard label="Ingreso histórico total" value={formatBs(kpi.ingreso_historico)} />
+          <StatCard label="Ingreso histórico (mensualidades)" value={formatBs(kpi.ingreso_historico)} />
+          <StatCard label="Ingreso por instalaciones" value={formatBs(kpi.ingreso_instalaciones)} />
           <StatCard label="Ticket promedio" value={formatBs(kpi.ticket_promedio)} />
         </div>
       )}
