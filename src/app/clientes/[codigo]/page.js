@@ -277,6 +277,8 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
               <dl className="grid grid-cols-2 gap-y-3 text-sm">
                 <dt className="text-brand-500">Teléfono</dt>
                 <dd>{cliente.telefono || '—'}</dd>
+<dt className="text-brand-500">CI</dt>
+                <dd>{cliente.ci || '—'}</dd>
                 <dt className="text-brand-500">Ciudad</dt>
                 <dd>{cliente.ciudad || 'El Alto'}</dd>
                 <dt className="text-brand-500">Día de pago</dt>
@@ -309,6 +311,10 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
                 <div>
                   <label className="label">Teléfono</label>
                   <input className="input" value={form.telefono || ''} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+                </div>
+           <div>
+                  <label className="label">CI (Cédula de identidad)</label>
+                  <input className="input" value={form.ci || ''} onChange={(e) => setForm({ ...form, ci: e.target.value })} placeholder="Ej: 3321656 LP" />
                 </div>
                 <div>
                   <label className="label">Ciudad</label>
