@@ -135,19 +135,19 @@ export default function PagosPage() {
 
       <div className="grid md:grid-cols-3 gap-6">
         {puedeGestionar && (
-          <div className="card p-5 md:col-span-1 h-fit">
-            <h2 className="font-semibold text-brand-700 mb-3">Registrar pago rápido</h2>
-            <form onSubmit={registrar} className="space-y-3">
+          <div className="card p-4 md:col-span-1 h-fit">
+            <h2 className="font-semibold text-sm text-brand-700 mb-2">Registrar pago rápido</h2>
+            <form onSubmit={registrar} className="space-y-2 text-sm">
               <div>
-                <label className="label">Buscar cliente</label>
+                <label className="label text-xs">Buscar cliente</label>
                 <input
-                  className="input"
+                  className="input text-sm py-1.5"
                   placeholder="Nombre del cliente…"
                   value={busqueda}
                   onChange={(e) => buscarClientes(e.target.value)}
                 />
                 {clientes.length > 0 && !seleccionado && (
-                  <div className="border border-brand-100 rounded-lg mt-1 max-h-48 overflow-y-auto">
+                  <div className="border border-brand-100 rounded-lg mt-1 max-h-40 overflow-y-auto">
                     {clientes.map((c) => (
                       <button
                         type="button"
@@ -158,9 +158,9 @@ export default function PagosPage() {
                           setBusqueda(c.nombre);
                           setClientes([]);
                         }}
-                        className="block w-full text-left px-3 py-2 text-sm hover:bg-brand-50"
+                        className="block w-full text-left px-3 py-1.5 text-xs hover:bg-brand-50"
                       >
-                        {c.nombre} <span className="text-brand-400 font-mono text-xs">({c.codigo})</span>
+                        {c.nombre} <span className="text-brand-400 font-mono text-[10px]">({c.codigo})</span>
                       </button>
                     ))}
                   </div>
@@ -172,24 +172,24 @@ export default function PagosPage() {
                 )}
               </div>
               <div>
-                <label className="label">Fecha</label>
-                <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+                <label className="label text-xs">Fecha</label>
+                <input type="date" className="input text-sm py-1.5" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </div>
               <div>
-                <label className="label">Tipo de pago</label>
-                <select className="input" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                <label className="label text-xs">Tipo de pago</label>
+                <select className="input text-sm py-1.5" value={tipo} onChange={(e) => setTipo(e.target.value)}>
                   <option value="Mensualidad">Mensualidad</option>
                   <option value="Instalacion">Instalación</option>
                 </select>
               </div>
               <div>
-                <label className="label">Monto (Bs)</label>
-                <input type="number" step="0.01" className="input" value={monto} onChange={(e) => setMonto(e.target.value)} />
+                <label className="label text-xs">Monto (Bs)</label>
+                <input type="number" step="0.01" className="input text-sm py-1.5" value={monto} onChange={(e) => setMonto(e.target.value)} />
               </div>
-              <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
+              <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full text-sm py-2">
                 {guardando ? 'Registrando…' : 'Registrar pago'}
               </button>
-              {msg && <p className="text-sm text-brand-600">{msg}</p>}
+              {msg && <p className="text-xs text-brand-600">{msg}</p>}
             </form>
           </div>
         )}
