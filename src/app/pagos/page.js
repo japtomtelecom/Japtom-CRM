@@ -135,13 +135,13 @@ export default function PagosPage() {
 
       <div className="grid md:grid-cols-3 gap-6">
         {puedeGestionar && (
-          <div className="card p-4 md:col-span-1 h-fit">
+          <div className="card p-3 md:col-span-1">
             <h2 className="font-semibold text-sm text-brand-700 mb-2">Registrar pago rápido</h2>
-            <form onSubmit={registrar} className="space-y-2 text-sm">
+            <form onSubmit={registrar} className="space-y-1.5 text-sm">
               <div>
                 <label className="label text-xs">Buscar cliente</label>
                 <input
-                  className="input text-sm py-1.5"
+                  className="input text-sm py-1"
                   placeholder="Nombre del cliente…"
                   value={busqueda}
                   onChange={(e) => buscarClientes(e.target.value)}
@@ -173,20 +173,20 @@ export default function PagosPage() {
               </div>
               <div>
                 <label className="label text-xs">Fecha</label>
-                <input type="date" className="input text-sm py-1.5" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+                <input type="date" className="input text-sm py-1" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </div>
               <div>
                 <label className="label text-xs">Tipo de pago</label>
-                <select className="input text-sm py-1.5" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                <select className="input text-sm py-1" value={tipo} onChange={(e) => setTipo(e.target.value)}>
                   <option value="Mensualidad">Mensualidad</option>
                   <option value="Instalacion">Instalación</option>
                 </select>
               </div>
               <div>
                 <label className="label text-xs">Monto (Bs)</label>
-                <input type="number" step="0.01" className="input text-sm py-1.5" value={monto} onChange={(e) => setMonto(e.target.value)} />
+                <input type="number" step="0.01" className="input text-sm py-1" value={monto} onChange={(e) => setMonto(e.target.value)} />
               </div>
-              <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full text-sm py-2">
+              <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full text-sm py-1.5">
                 {guardando ? 'Registrando…' : 'Registrar pago'}
               </button>
               {msg && <p className="text-xs text-brand-600">{msg}</p>}
