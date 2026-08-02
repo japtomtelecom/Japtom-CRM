@@ -58,7 +58,7 @@ function tituloClausula(doc, titulo, x, y, ancho) {
   return y + 2;
 }
 
-export async function generarContrato(cliente, empresaNombre = 'JapTom Telecom') {
+export async function generarContrato(cliente, empresaNombre = 'JapTom Telecom', fechaFirma = null) {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const margenX = 20;
   const anchoUtil = 210 - margenX * 2;
@@ -235,7 +235,7 @@ export async function generarContrato(cliente, empresaNombre = 'JapTom Telecom')
   y += 10;
 
   y = verificarSalto(doc, y, 250);
-  const ahora = new Date();
+  const ahora = fechaFirma ? new Date(fechaFirma + 'T00:00:00') : new Date();
   const fechaTexto = ahora.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
   doc.setFont('helvetica', 'normal');
   y = parrafo(doc, `${ciudadFirma}, ${fechaTexto}`, margenX, y, anchoUtil);
