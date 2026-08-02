@@ -17,7 +17,7 @@ export default function FichaClientePage() {
   const [config, setConfig] = useState({});
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState(null);
-  const [nuevoPago, setNuevoPago] = useState({ fecha: new Date().toISOString().slice(0, 10), monto: '' });
+  const [nuevoPago, setNuevoPago] = useState({ fecha: new Date().toISOString().slice(0, 10), monto: '', tipo: 'Mensualidad' });
   const [mostrarTicket, setMostrarTicket] = useState(false);
   const [motivoFalla, setMotivoFalla] = useState('');
   const [guardando, setGuardando] = useState(false);
@@ -25,7 +25,7 @@ export default function FichaClientePage() {
   const [mikrotikCargando, setMikrotikCargando] = useState(false);
   const [mikrotikMsg, setMikrotikMsg] = useState('');
   const [editandoPagoId, setEditandoPagoId] = useState(null);
-  const [edicionPago, setEdicionPago] = useState({ fecha_pago: '', monto: '' });
+  const [edicionPago, setEdicionPago] = useState({ fecha_pago: '', monto: '', tipo: 'Mensualidad' });
 
   const cargar = useCallback(async () => {
     const { data: c } = await supabase.from('v_clientes_estado').select('*').eq('codigo', codigo).single();
@@ -51,7 +51,7 @@ export default function FichaClientePage() {
 
   async function guardarEdicion() {
     setGuardando(true);
-const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_at, ...actualizables } = form;
+    const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_at, ...actualizables } = form;
     const { error } = await supabase.from('clientes').update(actualizables).eq('id', id);
     setGuardando(false);
     if (!error) {
@@ -65,16 +65,17 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
   async function registrarPago(e) {
     e.preventDefault();
     if (!nuevoPago.monto) return;
-    if (!confirm(`¿Confirmas registrar un pago de ${formatBs(nuevoPago.monto)} para ${cliente.nombre}?`)) return;
+    if (!confirm(`¿Confirmas registrar un pago de ${formatBs(nuevoPago.monto)} (${nuevoPago.tipo}) para ${cliente.nombre}?`)) return;
     setGuardando(true);
     const { error } = await supabase.from('pagos').insert({
       cliente_id: cliente.id,
       fecha_pago: nuevoPago.fecha,
       monto: Number(nuevoPago.monto),
+      tipo: nuevoPago.tipo,
     });
     setGuardando(false);
     if (!error) {
-      setNuevoPago({ fecha: new Date().toISOString().slice(0, 10), monto: '' });
+      setNuevoPago({ fecha: new Date().toISOString().slice(0, 10), monto: '', tipo: 'Mensualidad' });
       setMsg(`✅ Pago de ${formatBs(nuevoPago.monto)} registrado correctamente.`);
       cargar();
     } else {
@@ -95,13 +96,13 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
 
   function empezarEdicionPago(p) {
     setEditandoPagoId(p.id);
-    setEdicionPago({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto });
+    setEdicionPago({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto, tipo: p.tipo || 'Mensualidad' });
   }
 
   async function guardarEdicionPago(pagoId) {
     const { error } = await supabase
       .from('pagos')
-      .update({ fecha_pago: edicionPago.fecha_pago, monto: Number(edicionPago.monto) })
+      .update({ fecha_pago: edicionPago.fecha_pago, monto: Number(edicionPago.monto), tipo: edicionPago.tipo })
       .eq('id', pagoId);
     if (error) {
       setMsg('Error al modificar pago: ' + error.message);
@@ -200,6 +201,8 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
   const mensaje = construirMensaje(cliente, config, config.empresa_nombre);
   const wa = linkWhatsApp(cliente.telefono, mensaje);
   const totalHistorico = pagos.reduce((acc, p) => acc + Number(p.monto), 0);
+  const totalInstalacion = pagos.filter((p) => p.tipo === 'Instalacion').reduce((acc, p) => acc + Number(p.monto), 0);
+  const totalMensualidades = pagos.filter((p) => p.tipo !== 'Instalacion').reduce((acc, p) => acc + Number(p.monto), 0);
 
   return (
     <AppShell>
@@ -277,8 +280,10 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
               <dl className="grid grid-cols-2 gap-y-3 text-sm">
                 <dt className="text-brand-500">Teléfono</dt>
                 <dd>{cliente.telefono || '—'}</dd>
-<dt className="text-brand-500">CI</dt>
+                <dt className="text-brand-500">CI</dt>
                 <dd>{cliente.ci || '—'}</dd>
+                <dt className="text-brand-500">Costo de instalación</dt>
+                <dd>{cliente.costo_instalacion ? formatBs(cliente.costo_instalacion) : '—'}</dd>
                 <dt className="text-brand-500">Ciudad</dt>
                 <dd>{cliente.ciudad || 'El Alto'}</dd>
                 <dt className="text-brand-500">Día de pago</dt>
@@ -312,9 +317,13 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
                   <label className="label">Teléfono</label>
                   <input className="input" value={form.telefono || ''} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
                 </div>
-           <div>
+                <div>
                   <label className="label">CI (Cédula de identidad)</label>
                   <input className="input" value={form.ci || ''} onChange={(e) => setForm({ ...form, ci: e.target.value })} placeholder="Ej: 3321656 LP" />
+                </div>
+                <div>
+                  <label className="label">Costo de instalación (Bs)</label>
+                  <input type="number" className="input" value={form.costo_instalacion || ''} onChange={(e) => setForm({ ...form, costo_instalacion: Number(e.target.value) })} placeholder="200" />
                 </div>
                 <div>
                   <label className="label">Ciudad</label>
@@ -389,6 +398,7 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
                 <thead>
                   <tr className="text-left text-brand-500 border-b border-brand-100">
                     <th className="py-2">Fecha</th>
+                    <th className="py-2">Tipo</th>
                     <th className="py-2">Monto</th>
                     {isAdmin && <th className="py-2"></th>}
                   </tr>
@@ -405,6 +415,12 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
                               value={edicionPago.fecha_pago}
                               onChange={(e) => setEdicionPago({ ...edicionPago, fecha_pago: e.target.value })}
                             />
+                          </td>
+                          <td className="py-2">
+                            <select className="input" value={edicionPago.tipo} onChange={(e) => setEdicionPago({ ...edicionPago, tipo: e.target.value })}>
+                              <option value="Mensualidad">Mensualidad</option>
+                              <option value="Instalacion">Instalación</option>
+                            </select>
                           </td>
                           <td className="py-2">
                             <input
@@ -429,6 +445,13 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
                       ) : (
                         <>
                           <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
+                          <td className="py-2">
+                            {p.tipo === 'Instalacion' ? (
+                              <span className="text-accent-600 font-medium">Instalación</span>
+                            ) : (
+                              'Mensualidad'
+                            )}
+                          </td>
                           <td className="py-2">{formatBs(p.monto)}</td>
                           {isAdmin && (
                             <td className="py-2 text-right whitespace-nowrap">
@@ -453,8 +476,11 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
                 </tbody>
               </table>
             )}
-            <div className="mt-3 text-sm text-brand-600 font-medium">
-              Total histórico pagado: {formatBs(totalHistorico)} · {pagos.length} pagos
+            <div className="mt-3 text-sm text-brand-600 space-y-1">
+              <div className="font-medium">Total histórico pagado: {formatBs(totalHistorico)} · {pagos.length} pagos</div>
+              <div className="text-xs text-brand-400">
+                Mensualidades: {formatBs(totalMensualidades)} · Instalación: {formatBs(totalInstalacion)}
+              </div>
             </div>
           </div>
         </div>
@@ -472,6 +498,13 @@ const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_a
                     value={nuevoPago.fecha}
                     onChange={(e) => setNuevoPago({ ...nuevoPago, fecha: e.target.value })}
                   />
+                </div>
+                <div>
+                  <label className="label">Tipo de pago</label>
+                  <select className="input" value={nuevoPago.tipo} onChange={(e) => setNuevoPago({ ...nuevoPago, tipo: e.target.value })}>
+                    <option value="Mensualidad">Mensualidad</option>
+                    <option value="Instalacion">Instalación</option>
+                  </select>
                 </div>
                 <div>
                   <label className="label">Monto (Bs)</label>
