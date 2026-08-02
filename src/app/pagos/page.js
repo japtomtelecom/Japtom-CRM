@@ -16,10 +16,11 @@ export default function PagosPage() {
   const [seleccionado, setSeleccionado] = useState(null);
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [monto, setMonto] = useState('');
+  const [tipo, setTipo] = useState('Mensualidad');
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
-  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '' });
+  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo: 'Mensualidad' });
   const [ciudadFiltro, setCiudadFiltro] = useState('todas');
 
   useEffect(() => {
@@ -29,7 +30,7 @@ export default function PagosPage() {
   async function cargarPagos() {
     const { data } = await supabase
       .from('pagos')
-      .select('id, fecha_pago, monto, clientes(codigo, nombre, ciudad)')
+      .select('id, fecha_pago, monto, tipo, clientes(codigo, nombre, ciudad)')
       .order('fecha_pago', { ascending: false })
       .limit(200);
     setPagos(data || []);
@@ -46,13 +47,13 @@ export default function PagosPage() {
 
   function empezarEdicion(p) {
     setEditandoId(p.id);
-    setEdicion({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto });
+    setEdicion({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto, tipo: p.tipo || 'Mensualidad' });
   }
 
   async function guardarEdicion(id) {
     const { error } = await supabase
       .from('pagos')
-      .update({ fecha_pago: edicion.fecha_pago, monto: Number(edicion.monto) })
+      .update({ fecha_pago: edicion.fecha_pago, monto: Number(edicion.monto), tipo: edicion.tipo })
       .eq('id', id);
     if (error) {
       setMsg('Error al modificar: ' + error.message);
@@ -93,23 +94,25 @@ export default function PagosPage() {
   async function registrar(e) {
     e.preventDefault();
     if (!seleccionado || !monto) return;
-    if (!confirm(`¿Confirmas registrar un pago de ${formatBs(monto)} para ${seleccionado.nombre}?`)) return;
+    if (!confirm(`¿Confirmas registrar un pago de ${formatBs(monto)} (${tipo}) para ${seleccionado.nombre}?`)) return;
     setGuardando(true);
     const { error } = await supabase.from('pagos').insert({
       cliente_id: seleccionado.id,
       fecha_pago: fecha,
       monto: Number(monto),
+      tipo,
     });
     setGuardando(false);
     if (error) {
       setMsg('Error: ' + error.message);
       return;
     }
-    setMsg(`Pago de ${formatBs(monto)} registrado para ${seleccionado.nombre}.`);
+    setMsg(`Pago de ${formatBs(monto)} (${tipo}) registrado para ${seleccionado.nombre}.`);
     setSeleccionado(null);
     setBusqueda('');
     setClientes([]);
     setMonto('');
+    setTipo('Mensualidad');
     cargarPagos();
   }
 
@@ -173,6 +176,13 @@ export default function PagosPage() {
                 <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
               </div>
               <div>
+                <label className="label">Tipo de pago</label>
+                <select className="input" value={tipo} onChange={(e) => setTipo(e.target.value)}>
+                  <option value="Mensualidad">Mensualidad</option>
+                  <option value="Instalacion">Instalación</option>
+                </select>
+              </div>
+              <div>
                 <label className="label">Monto (Bs)</label>
                 <input type="number" step="0.01" className="input" value={monto} onChange={(e) => setMonto(e.target.value)} />
               </div>
@@ -192,6 +202,7 @@ export default function PagosPage() {
                 <th className="py-2">Fecha</th>
                 <th className="py-2">Cliente</th>
                 <th className="py-2">Ciudad</th>
+                <th className="py-2">Tipo</th>
                 <th className="py-2">Monto</th>
                 {isAdmin && <th className="py-2"></th>}
               </tr>
@@ -214,6 +225,12 @@ export default function PagosPage() {
                         <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
                       </td>
                       <td className="py-2">{p.clientes?.ciudad || 'El Alto'}</td>
+                      <td className="py-2">
+                        <select className="input" value={edicion.tipo} onChange={(e) => setEdicion({ ...edicion, tipo: e.target.value })}>
+                          <option value="Mensualidad">Mensualidad</option>
+                          <option value="Instalacion">Instalación</option>
+                        </select>
+                      </td>
                       <td className="py-2">
                         <input
                           type="number"
@@ -242,6 +259,13 @@ export default function PagosPage() {
                         <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
                       </td>
                       <td className="py-2">{p.clientes?.ciudad || 'El Alto'}</td>
+                      <td className="py-2">
+                        {p.tipo === 'Instalacion' ? (
+                          <span className="text-accent-600 font-medium">Instalación</span>
+                        ) : (
+                          'Mensualidad'
+                        )}
+                      </td>
                       <td className="py-2">{formatBs(p.monto)}</td>
                       {isAdmin && (
                         <td className="py-2 text-right whitespace-nowrap">
@@ -259,7 +283,7 @@ export default function PagosPage() {
               ))}
               {pagosFiltrados.length === 0 && (
                 <tr>
-                  <td colSpan={isAdmin ? 5 : 4} className="py-4 text-brand-400">
+                  <td colSpan={isAdmin ? 6 : 5} className="py-4 text-brand-400">
                     No hay pagos para esta ciudad todavía.
                   </td>
                 </tr>
