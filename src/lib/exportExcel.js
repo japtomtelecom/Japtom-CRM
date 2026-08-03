@@ -8,7 +8,7 @@ export async function exportarExcel() {
     supabase.from('v_clientes_estado').select('*').order('nombre', { ascending: true }),
     supabase
       .from('pagos')
-      .select('fecha_pago, monto, clientes(codigo, nombre)')
+      .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre)')
       .order('fecha_pago', { ascending: false }),
     supabase.from('planes').select('*').order('precio', { ascending: true }),
     supabase.from('v_dashboard').select('*').single(),
@@ -29,6 +29,9 @@ export async function exportarExcel() {
     Velocidad: c.velocidad || '',
     'Dirección': c.direccion || '',
     Estado: c.activo ? c.estado : 'Inactivo',
+    'Último Mensaje Enviado': c.ultimo_mensaje_enviado
+      ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO')
+      : '',
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaClientes), 'CLIENTES');
 
@@ -37,6 +40,10 @@ export async function exportarExcel() {
     'Fecha de Pago': new Date(p.fecha_pago).toLocaleDateString('es-BO'),
     Cliente: p.clientes?.nombre || '',
     Monto: p.monto,
+    'Tipo de Pago': p.tipo_pago || 'Mensual',
+    'Mes que Corresponde': p.mes_corresponde
+      ? new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'long', year: 'numeric' })
+      : '',
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaPagos), 'PAGOS');
 

@@ -7,28 +7,30 @@ import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { formatBs, linkWhatsApp, construirMensaje, parsearFechaLocal } from '@/lib/utils';
 import { generarTicketFalla } from '@/lib/generarTicket';
-import { generarContrato } from '@/lib/generarContrato';
 
 export default function FichaClientePage() {
   const { codigo } = useParams();
   const router = useRouter();
-  const { isAdmin, puedeGestionar } = usePerfil();
+  const { isAdmin } = usePerfil();
   const [cliente, setCliente] = useState(null);
   const [pagos, setPagos] = useState([]);
   const [config, setConfig] = useState({});
   const [editando, setEditando] = useState(false);
   const [form, setForm] = useState(null);
-  const [nuevoPago, setNuevoPago] = useState({ fecha: new Date().toISOString().slice(0, 10), monto: '', tipo: 'Mensualidad' });
+  const [nuevoPago, setNuevoPago] = useState({
+    fecha: new Date().toISOString().slice(0, 10),
+    monto: '',
+    tipo_pago: 'Mensual',
+    mes_corresponde: new Date().toISOString().slice(0, 7),
+  });
   const [mostrarTicket, setMostrarTicket] = useState(false);
-  const [mostrarContrato, setMostrarContrato] = useState(false);
-  const [fechaContrato, setFechaContrato] = useState(new Date().toISOString().slice(0, 10));
   const [motivoFalla, setMotivoFalla] = useState('');
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [mikrotikCargando, setMikrotikCargando] = useState(false);
   const [mikrotikMsg, setMikrotikMsg] = useState('');
   const [editandoPagoId, setEditandoPagoId] = useState(null);
-  const [edicionPago, setEdicionPago] = useState({ fecha_pago: '', monto: '', tipo: 'Mensualidad' });
+  const [edicionPago, setEdicionPago] = useState({ fecha_pago: '', monto: '' });
 
   const cargar = useCallback(async () => {
     const { data: c } = await supabase.from('v_clientes_estado').select('*').eq('codigo', codigo).single();
@@ -54,7 +56,7 @@ export default function FichaClientePage() {
 
   async function guardarEdicion() {
     setGuardando(true);
-    const { id, estado, pagado_mes_actual, fecha_vencimiento, ultimo_pago, created_at, ...actualizables } = form;
+    const { id, estado, pagado_mes_actual, created_at, ...actualizables } = form;
     const { error } = await supabase.from('clientes').update(actualizables).eq('id', id);
     setGuardando(false);
     if (!error) {
@@ -68,17 +70,23 @@ export default function FichaClientePage() {
   async function registrarPago(e) {
     e.preventDefault();
     if (!nuevoPago.monto) return;
-    if (!confirm(`¿Confirmas registrar un pago de ${formatBs(nuevoPago.monto)} (${nuevoPago.tipo}) para ${cliente.nombre}?`)) return;
+    if (!confirm(`¿Confirmas registrar un pago de ${formatBs(nuevoPago.monto)} para ${cliente.nombre}?`)) return;
     setGuardando(true);
     const { error } = await supabase.from('pagos').insert({
       cliente_id: cliente.id,
       fecha_pago: nuevoPago.fecha,
       monto: Number(nuevoPago.monto),
-      tipo: nuevoPago.tipo,
+      tipo_pago: nuevoPago.tipo_pago,
+      mes_corresponde: `${nuevoPago.mes_corresponde}-01`,
     });
     setGuardando(false);
     if (!error) {
-      setNuevoPago({ fecha: new Date().toISOString().slice(0, 10), monto: '', tipo: 'Mensualidad' });
+      setNuevoPago({
+        fecha: new Date().toISOString().slice(0, 10),
+        monto: '',
+        tipo_pago: 'Mensual',
+        mes_corresponde: new Date().toISOString().slice(0, 7),
+      });
       setMsg(`✅ Pago de ${formatBs(nuevoPago.monto)} registrado correctamente.`);
       cargar();
     } else {
@@ -99,13 +107,13 @@ export default function FichaClientePage() {
 
   function empezarEdicionPago(p) {
     setEditandoPagoId(p.id);
-    setEdicionPago({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto, tipo: p.tipo || 'Mensualidad' });
+    setEdicionPago({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto });
   }
 
   async function guardarEdicionPago(pagoId) {
     const { error } = await supabase
       .from('pagos')
-      .update({ fecha_pago: edicionPago.fecha_pago, monto: Number(edicionPago.monto), tipo: edicionPago.tipo })
+      .update({ fecha_pago: edicionPago.fecha_pago, monto: Number(edicionPago.monto) })
       .eq('id', pagoId);
     if (error) {
       setMsg('Error al modificar pago: ' + error.message);
@@ -176,14 +184,14 @@ export default function FichaClientePage() {
     await llamarMikrotik('cambiar-plan', { clienteId: cliente.id });
   }
 
-  async function cerrarSesionMikrotik() {
-    if (!confirm(`¿Cerrar la sesión PPPoE activa de ${cliente.nombre}? El cliente se desconectará y su router/equipo intentará reconectarse solo.`)) return;
-    await llamarMikrotik('cerrar-sesion', { clienteId: cliente.id });
-  }
-
   async function crearUsuarioMikrotik() {
     if (!confirm(`¿Crear el usuario PPPoE "${cliente.pppoe_usuario}" en el MikroTik de ${cliente.ciudad}?`)) return;
     await llamarMikrotik('crear-usuario', { clienteId: cliente.id });
+  }
+
+  async function marcarMensajeEnviado() {
+    await supabase.from('clientes').update({ ultimo_mensaje_enviado: new Date().toISOString() }).eq('id', cliente.id);
+    cargar();
   }
 
   async function generarTicket() {
@@ -191,12 +199,6 @@ export default function FichaClientePage() {
     await generarTicketFalla(cliente, motivoFalla, config.empresa_nombre);
     setMostrarTicket(false);
     setMotivoFalla('');
-  }
-
-  async function generarContratoPdf() {
-    if (!confirm(`¿Generar el contrato de servicio para ${cliente.nombre} con fecha ${fechaContrato}?`)) return;
-    await generarContrato(cliente, config.empresa_nombre, fechaContrato);
-    setMostrarContrato(false);
   }
 
   if (!cliente) {
@@ -210,8 +212,6 @@ export default function FichaClientePage() {
   const mensaje = construirMensaje(cliente, config, config.empresa_nombre);
   const wa = linkWhatsApp(cliente.telefono, mensaje);
   const totalHistorico = pagos.reduce((acc, p) => acc + Number(p.monto), 0);
-  const totalInstalacion = pagos.filter((p) => p.tipo === 'Instalacion').reduce((acc, p) => acc + Number(p.monto), 0);
-  const totalMensualidades = pagos.filter((p) => p.tipo !== 'Instalacion').reduce((acc, p) => acc + Number(p.monto), 0);
 
   return (
     <AppShell>
@@ -235,21 +235,22 @@ export default function FichaClientePage() {
         </div>
         <div className="flex gap-2">
           {wa && (
-            <a href={wa} target="_blank" rel="noreferrer" className="btn-whatsapp">
+            <a
+              href={wa}
+              target="_blank"
+              rel="noreferrer"
+              onClick={() => marcarMensajeEnviado()}
+              className="btn-whatsapp"
+            >
               📲 Enviar WhatsApp
             </a>
           )}
           <button onClick={() => setMostrarTicket((v) => !v)} className="btn-secondary">
             🎫 Ticket de falla
           </button>
-          <button onClick={() => setMostrarContrato((v) => !v)} className="btn-secondary">
-            📄 Generar contrato
+          <button onClick={() => setEditando((v) => !v)} className="btn-secondary">
+            {editando ? 'Cancelar' : 'Editar'}
           </button>
-          {puedeGestionar && (
-            <button onClick={() => setEditando((v) => !v)} className="btn-secondary">
-              {editando ? 'Cancelar' : 'Editar'}
-            </button>
-          )}
           {isAdmin && (
             <button onClick={borrarCliente} className="btn-secondary text-red-500 border-red-200 hover:bg-red-50">
               Eliminar
@@ -259,27 +260,6 @@ export default function FichaClientePage() {
       </div>
 
       {msg && <div className="card p-3 mb-4 text-red-600 text-sm">{msg}</div>}
-
-      {mostrarContrato && (
-        <div className="card p-5 mb-6">
-          <h2 className="font-semibold text-brand-700 mb-3">Generar contrato</h2>
-          <label className="label">Fecha de firma</label>
-          <input
-            type="date"
-            className="input mb-3"
-            value={fechaContrato}
-            onChange={(e) => setFechaContrato(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <button onClick={generarContratoPdf} className="btn-primary">
-              📄 Descargar PDF
-            </button>
-            <button onClick={() => setMostrarContrato(false)} className="btn-secondary">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
 
       {mostrarTicket && (
         <div className="card p-5 mb-6">
@@ -313,18 +293,10 @@ export default function FichaClientePage() {
               <dl className="grid grid-cols-2 gap-y-3 text-sm">
                 <dt className="text-brand-500">Teléfono</dt>
                 <dd>{cliente.telefono || '—'}</dd>
-                <dt className="text-brand-500">CI</dt>
-                <dd>{cliente.ci || '—'}</dd>
-                <dt className="text-brand-500">Costo de instalación</dt>
-                <dd>{cliente.costo_instalacion ? formatBs(cliente.costo_instalacion) : '—'}</dd>
-                <dt className="text-brand-500">Vencimiento manual</dt>
-                <dd>{cliente.fecha_vencimiento_manual ? new Date(cliente.fecha_vencimiento_manual + 'T00:00:00').toLocaleDateString('es-BO') + ' (fijo)' : '—'}</dd>
                 <dt className="text-brand-500">Ciudad</dt>
                 <dd>{cliente.ciudad || 'El Alto'}</dd>
                 <dt className="text-brand-500">Día de pago</dt>
                 <dd>{cliente.dia_pago ?? '—'}</dd>
-                <dt className="text-brand-500">Vence</dt>
-                <dd>{cliente.fecha_vencimiento ? new Date(cliente.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-BO') : '—'}</dd>
                 <dt className="text-brand-500">Plan</dt>
                 <dd>{cliente.plan || '—'}</dd>
                 <dt className="text-brand-500">Velocidad</dt>
@@ -339,8 +311,12 @@ export default function FichaClientePage() {
                 <dd>{cliente.activo ? 'Sí' : 'No'}</dd>
                 <dt className="text-brand-500">Usuario PPPoE</dt>
                 <dd>{cliente.pppoe_usuario || '—'}</dd>
-                <dt className="text-brand-500">IP asignada</dt>
-                <dd>{cliente.ip_asignada || '—'}</dd>
+                <dt className="text-brand-500">Último mensaje enviado</dt>
+                <dd>
+                  {cliente.ultimo_mensaje_enviado
+                    ? new Date(cliente.ultimo_mensaje_enviado).toLocaleString('es-BO')
+                    : '—'}
+                </dd>
               </dl>
             ) : (
               <div className="grid grid-cols-2 gap-4">
@@ -351,24 +327,6 @@ export default function FichaClientePage() {
                 <div>
                   <label className="label">Teléfono</label>
                   <input className="input" value={form.telefono || ''} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">CI (Cédula de identidad)</label>
-                  <input className="input" value={form.ci || ''} onChange={(e) => setForm({ ...form, ci: e.target.value })} placeholder="Ej: 3321656 LP" />
-                </div>
-                <div>
-                  <label className="label">Costo de instalación (Bs)</label>
-                  <input type="number" className="input" value={form.costo_instalacion || ''} onChange={(e) => setForm({ ...form, costo_instalacion: Number(e.target.value) })} placeholder="200" />
-                </div>
-                <div>
-                  <label className="label">Vencimiento manual (opcional, para casos VIP)</label>
-                  <input
-                    type="date"
-                    className="input"
-                    value={form.fecha_vencimiento_manual || ''}
-                    onChange={(e) => setForm({ ...form, fecha_vencimiento_manual: e.target.value || null })}
-                  />
-                  <p className="text-xs text-brand-400 mt-1">Si lo dejas vacío, se calcula automáticamente según el último pago.</p>
                 </div>
                 <div>
                   <label className="label">Ciudad</label>
@@ -412,15 +370,6 @@ export default function FichaClientePage() {
                   <label className="label">Contraseña PPPoE</label>
                   <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })} placeholder="Solo se usa para crearlo en el MikroTik" />
                 </div>
-                <div>
-                  <label className="label">IP a asignar</label>
-                  <input
-                    className="input"
-                    value={form.ip_asignada || ''}
-                    onChange={(e) => setForm({ ...form, ip_asignada: e.target.value })}
-                    placeholder="Ej: 10.1.20.4"
-                  />
-                </div>
                 <div className="col-span-2">
                   <label className="label">Dirección</label>
                   <input className="input" value={form.direccion || ''} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
@@ -443,7 +392,6 @@ export default function FichaClientePage() {
                 <thead>
                   <tr className="text-left text-brand-500 border-b border-brand-100">
                     <th className="py-2">Fecha</th>
-                    <th className="py-2">Tipo</th>
                     <th className="py-2">Monto</th>
                     {isAdmin && <th className="py-2"></th>}
                   </tr>
@@ -460,12 +408,6 @@ export default function FichaClientePage() {
                               value={edicionPago.fecha_pago}
                               onChange={(e) => setEdicionPago({ ...edicionPago, fecha_pago: e.target.value })}
                             />
-                          </td>
-                          <td className="py-2">
-                            <select className="input" value={edicionPago.tipo} onChange={(e) => setEdicionPago({ ...edicionPago, tipo: e.target.value })}>
-                              <option value="Mensualidad">Mensualidad</option>
-                              <option value="Instalacion">Instalación</option>
-                            </select>
                           </td>
                           <td className="py-2">
                             <input
@@ -490,13 +432,6 @@ export default function FichaClientePage() {
                       ) : (
                         <>
                           <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
-                          <td className="py-2">
-                            {p.tipo === 'Instalacion' ? (
-                              <span className="text-accent-600 font-medium">Instalación</span>
-                            ) : (
-                              'Mensualidad'
-                            )}
-                          </td>
                           <td className="py-2">{formatBs(p.monto)}</td>
                           {isAdmin && (
                             <td className="py-2 text-right whitespace-nowrap">
@@ -521,53 +456,62 @@ export default function FichaClientePage() {
                 </tbody>
               </table>
             )}
-            <div className="mt-3 text-sm text-brand-600 space-y-1">
-              <div className="font-medium">Total histórico pagado: {formatBs(totalHistorico)} · {pagos.length} pagos</div>
-              <div className="text-xs text-brand-400">
-                Mensualidades: {formatBs(totalMensualidades)} · Instalación: {formatBs(totalInstalacion)}
-              </div>
+            <div className="mt-3 text-sm text-brand-600 font-medium">
+              Total histórico pagado: {formatBs(totalHistorico)} · {pagos.length} pagos
             </div>
           </div>
         </div>
 
         <div className="space-y-6">
-          {puedeGestionar && (
-            <div className="card p-5">
-              <h2 className="font-semibold text-brand-700 mb-3">Registrar pago</h2>
-              <form onSubmit={registrarPago} className="space-y-3">
-                <div>
-                  <label className="label">Fecha</label>
-                  <input
-                    type="date"
-                    className="input"
-                    value={nuevoPago.fecha}
-                    onChange={(e) => setNuevoPago({ ...nuevoPago, fecha: e.target.value })}
-                  />
-                </div>
-                <div>
-                  <label className="label">Tipo de pago</label>
-                  <select className="input" value={nuevoPago.tipo} onChange={(e) => setNuevoPago({ ...nuevoPago, tipo: e.target.value })}>
-                    <option value="Mensualidad">Mensualidad</option>
-                    <option value="Instalacion">Instalación</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Monto (Bs)</label>
-                  <input
-                    type="number"
-                    step="0.01"
-                    className="input"
-                    placeholder={cliente.precio}
-                    value={nuevoPago.monto}
-                    onChange={(e) => setNuevoPago({ ...nuevoPago, monto: e.target.value })}
-                  />
-                </div>
-                <button type="submit" disabled={guardando} className="btn-primary w-full">
-                  {guardando ? 'Registrando…' : 'Registrar pago'}
-                </button>
-              </form>
-            </div>
-          )}
+          <div className="card p-5">
+            <h2 className="font-semibold text-brand-700 mb-3">Registrar pago</h2>
+            <form onSubmit={registrarPago} className="space-y-3">
+              <div>
+                <label className="label">Fecha</label>
+                <input
+                  type="date"
+                  className="input"
+                  value={nuevoPago.fecha}
+                  onChange={(e) => setNuevoPago({ ...nuevoPago, fecha: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Monto (Bs)</label>
+                <input
+                  type="number"
+                  step="0.01"
+                  className="input"
+                  placeholder={cliente.precio}
+                  value={nuevoPago.monto}
+                  onChange={(e) => setNuevoPago({ ...nuevoPago, monto: e.target.value })}
+                />
+              </div>
+              <div>
+                <label className="label">Tipo de pago</label>
+                <select
+                  className="input"
+                  value={nuevoPago.tipo_pago}
+                  onChange={(e) => setNuevoPago({ ...nuevoPago, tipo_pago: e.target.value })}
+                >
+                  <option value="Mensual">Mensual</option>
+                  <option value="Semestral">Semestral (6 meses)</option>
+                  <option value="Anual">Anual (12 meses)</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">¿A qué mes corresponde?</label>
+                <input
+                  type="month"
+                  className="input"
+                  value={nuevoPago.mes_corresponde}
+                  onChange={(e) => setNuevoPago({ ...nuevoPago, mes_corresponde: e.target.value })}
+                />
+              </div>
+              <button type="submit" disabled={guardando} className="btn-primary w-full">
+                {guardando ? 'Registrando…' : 'Registrar pago'}
+              </button>
+            </form>
+          </div>
 
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Vista previa del mensaje</h2>
@@ -601,13 +545,6 @@ export default function FichaClientePage() {
                   </button>
                   <button onClick={sincronizarPlan} disabled={mikrotikCargando} className="btn-secondary w-full">
                     🔄 Sincronizar plan al MikroTik
-                  </button>
-                  <button
-                    onClick={cerrarSesionMikrotik}
-                    disabled={mikrotikCargando}
-                    className="btn-secondary w-full text-orange-600 border-orange-200 hover:bg-orange-50"
-                  >
-                    🔌 Cerrar sesión activa
                   </button>
                 </div>
               )}

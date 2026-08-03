@@ -6,7 +6,7 @@ import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
-import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
+import { formatBs } from '@/lib/utils';
 import { exportarExcel } from '@/lib/exportExcel';
 
 function Badge({ cliente }) {
@@ -19,13 +19,10 @@ function Badge({ cliente }) {
 }
 
 export default function ClientesPage() {
-  const { puedeGestionar } = usePerfil();
   const { sucursalActiva, esFija } = useSucursalActiva();
   const [clientes, setClientes] = useState([]);
-  const [config, setConfig] = useState({});
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState('todos');
-  const [diaPagoFiltro, setDiaPagoFiltro] = useState('todos');
   const [ciudadFiltro, setCiudadFiltro] = useState('todas');
   const [loading, setLoading] = useState(true);
 
@@ -44,14 +41,6 @@ export default function ClientesPage() {
       setLoading(false);
     }
     load();
-    supabase
-      .from('config')
-      .select('*')
-      .then(({ data }) => {
-        const cfg = {};
-        (data || []).forEach((r) => (cfg[r.clave] = r.valor));
-        setConfig(cfg);
-      });
   }, []);
 
   const filtrados = useMemo(() => {
@@ -61,7 +50,6 @@ export default function ClientesPage() {
     if (filtro === 'inactivos') lista = lista.filter((c) => !c.activo);
     if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
     if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
-    if (diaPagoFiltro !== 'todos') lista = lista.filter((c) => String(c.dia_pago) === String(diaPagoFiltro));
     if (busqueda.trim()) {
       const q = busqueda.trim().toLowerCase();
       lista = lista.filter(
@@ -69,26 +57,22 @@ export default function ClientesPage() {
       );
     }
     return lista;
-  }, [clientes, busqueda, filtro, diaPagoFiltro, ciudadFiltro]);
-
-  const diaHoy = new Date().getDate();
+  }, [clientes, busqueda, filtro, ciudadFiltro]);
 
   return (
     <AppShell>
       <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
           <h1 className="font-display text-2xl font-bold text-brand-800">Clientes</h1>
-          <p className="text-brand-500 text-sm">{filtrados.length} clientes registrados</p>
+          <p className="text-brand-500 text-sm">{clientes.length} clientes registrados</p>
         </div>
         <div className="flex gap-2">
           <button onClick={() => exportarExcel()} className="btn-secondary">
             ⬇️ Excel
           </button>
-          {puedeGestionar && (
-            <Link href="/clientes/nuevo" className="btn-primary">
-              + Agregar cliente
-            </Link>
-          )}
+          <Link href="/clientes/nuevo" className="btn-primary">
+            + Agregar cliente
+          </Link>
         </div>
       </div>
 
@@ -117,26 +101,6 @@ export default function ClientesPage() {
           <option value="al_dia">Al día</option>
           <option value="vencidos">Vencidos</option>
         </select>
-        <select className="input md:max-w-[160px]" value={diaPagoFiltro} onChange={(e) => setDiaPagoFiltro(e.target.value)}>
-          <option value="todos">Todos los días de pago</option>
-          {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
-            <option key={d} value={d}>
-              Día {d}
-            </option>
-          ))}
-        </select>
-        <button
-          type="button"
-          onClick={() => setDiaPagoFiltro(String(diaHoy))}
-          className={`btn-secondary ${String(diaPagoFiltro) === String(diaHoy) ? 'bg-brand-100 border-brand-400' : ''}`}
-        >
-          📅 Hoy (día {diaHoy})
-        </button>
-        {diaPagoFiltro !== 'todos' && (
-          <button type="button" onClick={() => setDiaPagoFiltro('todos')} className="text-brand-500 text-sm underline">
-            Quitar filtro de día
-          </button>
-        )}
       </div>
 
       <div className="card overflow-x-auto">
@@ -149,8 +113,8 @@ export default function ClientesPage() {
               <th className="p-3">Plan</th>
               <th className="p-3">Precio</th>
               <th className="p-3">Día de pago</th>
-              <th className="p-3">Vence</th>
               <th className="p-3">Estado</th>
+              <th className="p-3" title="¿Ya se le envió mensaje de WhatsApp?">Mensaje</th>
               <th className="p-3"></th>
             </tr>
           </thead>
@@ -169,40 +133,27 @@ export default function ClientesPage() {
                 </td>
               </tr>
             )}
-            {filtrados.map((c) => {
-              const mensaje = construirMensaje(c, config, config.empresa_nombre);
-              const wa = linkWhatsApp(c.telefono, mensaje);
-              return (
-                <tr key={c.id} className="border-b border-brand-50 hover:bg-brand-50/60">
-                  <td className="p-3 font-mono text-xs">{c.codigo}</td>
-                  <td className="p-3 font-medium">{c.nombre}</td>
-                  <td className="p-3">{c.ciudad || 'El Alto'}</td>
-                  <td className="p-3">{c.plan || '—'}</td>
-                  <td className="p-3">{formatBs(c.precio)}</td>
-                  <td className="p-3">{c.dia_pago ?? '—'}</td>
-                  <td className="p-3">{c.fecha_vencimiento ? new Date(c.fecha_vencimiento + 'T00:00:00').toLocaleDateString('es-BO') : '—'}</td>
-                  <td className="p-3">
-                    <Badge cliente={c} />
-                  </td>
-                  <td className="p-3 text-right whitespace-nowrap">
-                     {wa && (
-                      <a
-                        href={wa}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-green-600 hover:underline mr-3"
-                        title="Enviar WhatsApp"
-                      >
-                        📲
-                      </a>
-                    )}
-                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
-                      Ver ficha →
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
+            {filtrados.map((c) => (
+              <tr key={c.id} className="border-b border-brand-50 hover:bg-brand-50/60">
+                <td className="p-3 font-mono text-xs">{c.codigo}</td>
+                <td className="p-3 font-medium">{c.nombre}</td>
+                <td className="p-3">{c.ciudad || 'El Alto'}</td>
+                <td className="p-3">{c.plan || '—'}</td>
+                <td className="p-3">{formatBs(c.precio)}</td>
+                <td className="p-3">{c.dia_pago ?? '—'}</td>
+                <td className="p-3">
+                  <Badge cliente={c} />
+                </td>
+                <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
+                  {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
+                </td>
+                <td className="p-3 text-right">
+                  <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
+                    Ver ficha →
+                  </Link>
+                </td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </div>
