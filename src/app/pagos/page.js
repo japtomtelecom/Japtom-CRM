@@ -24,13 +24,13 @@ export default function PagosPage() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
-  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '' });
+  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
   const [config, setConfig] = useState({});
 
   async function cargarPagos() {
     const { data } = await supabase
       .from('pagos')
-      .select('id, fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre)')
+      .select('id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, clientes(codigo, nombre)')
       .order('fecha_pago', { ascending: false })
       .limit(50);
     setPagos(data || []);
@@ -50,13 +50,33 @@ export default function PagosPage() {
 
   function empezarEdicion(p) {
     setEditandoId(p.id);
-    setEdicion({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto });
+    setEdicion({
+      fecha_pago: p.fecha_pago.slice(0, 10),
+      monto: p.monto,
+      tipo_pago: p.tipo_pago || 'Mensual',
+      mes_corresponde: (p.mes_corresponde || p.fecha_pago).slice(0, 7),
+      meses_cubiertos: p.meses_cubiertos || 1,
+    });
   }
 
   async function guardarEdicion(id) {
+    const mesesCubiertos =
+      edicion.tipo_pago === 'Semestral'
+        ? 6
+        : edicion.tipo_pago === 'Anual'
+          ? 12
+          : edicion.tipo_pago === 'Personalizado'
+            ? Number(edicion.meses_cubiertos)
+            : 1;
     const { error } = await supabase
       .from('pagos')
-      .update({ fecha_pago: edicion.fecha_pago, monto: Number(edicion.monto) })
+      .update({
+        fecha_pago: edicion.fecha_pago,
+        monto: Number(edicion.monto),
+        tipo_pago: edicion.tipo_pago,
+        mes_corresponde: `${edicion.mes_corresponde}-01`,
+        meses_cubiertos: mesesCubiertos,
+      })
       .eq('id', id);
     if (error) {
       setMsg('Error al modificar: ' + error.message);
@@ -134,7 +154,7 @@ export default function PagosPage() {
     <AppShell>
       <h1 className="font-display text-2xl font-bold text-brand-800 mb-6">Pagos</h1>
 
-      <div className="grid md:grid-cols-3 gap-6">
+      <div className="grid md:grid-cols-3 gap-6 items-start">
         <div className="card p-5 md:col-span-1 h-fit">
           <h2 className="font-semibold text-brand-700 mb-3">Registrar pago rápido</h2>
           <form onSubmit={registrar} className="space-y-3">
@@ -182,22 +202,35 @@ export default function PagosPage() {
               </a>
             )}
 
-            <div>
-              <label className="label">Fecha</label>
-              <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Fecha</label>
+                <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+              </div>
+              <div>
+                <label className="label">Monto (Bs)</label>
+                <input type="number" step="0.01" className="input" value={monto} onChange={(e) => setMonto(e.target.value)} />
+              </div>
             </div>
-            <div>
-              <label className="label">Monto (Bs)</label>
-              <input type="number" step="0.01" className="input" value={monto} onChange={(e) => setMonto(e.target.value)} />
-            </div>
-            <div>
-              <label className="label">Tipo de pago</label>
-              <select className="input" value={tipoPago} onChange={(e) => setTipoPago(e.target.value)}>
-                <option value="Mensual">Mensual</option>
-                <option value="Semestral">Semestral (6 meses)</option>
-                <option value="Anual">Anual (12 meses)</option>
-                <option value="Personalizado">Personalizado (elige cuántos meses)</option>
-              </select>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Tipo de pago</label>
+                <select className="input" value={tipoPago} onChange={(e) => setTipoPago(e.target.value)}>
+                  <option value="Mensual">Mensual</option>
+                  <option value="Semestral">Semestral</option>
+                  <option value="Anual">Anual</option>
+                  <option value="Personalizado">Personalizado</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">¿Mes corresponde?</label>
+                <input
+                  type="month"
+                  className="input"
+                  value={mesCorresponde}
+                  onChange={(e) => setMesCorresponde(e.target.value)}
+                />
+              </div>
             </div>
             {tipoPago === 'Personalizado' && (
               <div>
@@ -211,18 +244,9 @@ export default function PagosPage() {
                 />
               </div>
             )}
-            <div>
-              <label className="label">¿A qué mes corresponde?</label>
-              <input
-                type="month"
-                className="input"
-                value={mesCorresponde}
-                onChange={(e) => setMesCorresponde(e.target.value)}
-              />
-              <p className="text-xs text-brand-400 mt-1">
-                Es el primer mes que cubre este pago — si es Semestral/Anual, se calculan solos los meses siguientes.
-              </p>
-            </div>
+            <p className="text-xs text-brand-400 -mt-1">
+              El mes es el primero que cubre el pago — Semestral/Anual calculan solos los siguientes.
+            </p>
             <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
               {guardando ? 'Registrando…' : 'Registrar pago'}
             </button>
@@ -239,6 +263,7 @@ export default function PagosPage() {
                 <th className="py-2">Cliente</th>
                 <th className="py-2">Monto</th>
                 <th className="py-2">Tipo</th>
+                <th className="py-2">Mes</th>
                 {isAdmin && <th className="py-2"></th>}
               </tr>
             </thead>
@@ -268,9 +293,38 @@ export default function PagosPage() {
                           onChange={(e) => setEdicion({ ...edicion, monto: e.target.value })}
                         />
                       </td>
-                      <td className="py-2 text-brand-400 text-xs">{p.tipo_pago}</td>
+                      <td className="py-2">
+                        <select
+                          className="input"
+                          value={edicion.tipo_pago}
+                          onChange={(e) => setEdicion({ ...edicion, tipo_pago: e.target.value })}
+                        >
+                          <option value="Mensual">Mensual</option>
+                          <option value="Semestral">Semestral</option>
+                          <option value="Anual">Anual</option>
+                          <option value="Personalizado">Personalizado</option>
+                        </select>
+                      </td>
+                      <td className="py-2">
+                        <input
+                          type="month"
+                          className="input mb-1"
+                          value={edicion.mes_corresponde}
+                          onChange={(e) => setEdicion({ ...edicion, mes_corresponde: e.target.value })}
+                        />
+                        {edicion.tipo_pago === 'Personalizado' && (
+                          <input
+                            type="number"
+                            min="1"
+                            className="input"
+                            placeholder="N° meses"
+                            value={edicion.meses_cubiertos}
+                            onChange={(e) => setEdicion({ ...edicion, meses_cubiertos: e.target.value })}
+                          />
+                        )}
+                      </td>
                       {isAdmin && (
-                        <td className="py-2 text-right whitespace-nowrap">
+                        <td className="py-2 text-right whitespace-nowrap align-top">
                           <button onClick={() => guardarEdicion(p.id)} className="text-brand-600 hover:underline text-xs mr-2">
                             Guardar
                           </button>
@@ -288,7 +342,15 @@ export default function PagosPage() {
                         <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
                       </td>
                       <td className="py-2">{formatBs(p.monto)}</td>
-                      <td className="py-2 text-brand-400 text-xs">{p.tipo_pago || 'Mensual'}</td>
+                      <td className="py-2 text-brand-400 text-xs">
+                        {p.tipo_pago || 'Mensual'}
+                        {p.tipo_pago === 'Personalizado' ? ` (${p.meses_cubiertos} m.)` : ''}
+                      </td>
+                      <td className="py-2 text-brand-400 text-xs capitalize">
+                        {p.mes_corresponde
+                          ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+                          : '—'}
+                      </td>
                       {isAdmin && (
                         <td className="py-2 text-right whitespace-nowrap">
                           <button onClick={() => empezarEdicion(p)} className="text-brand-600 hover:underline text-xs mr-3">

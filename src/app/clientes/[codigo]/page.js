@@ -31,7 +31,7 @@ export default function FichaClientePage() {
   const [mikrotikCargando, setMikrotikCargando] = useState(false);
   const [mikrotikMsg, setMikrotikMsg] = useState('');
   const [editandoPagoId, setEditandoPagoId] = useState(null);
-  const [edicionPago, setEdicionPago] = useState({ fecha_pago: '', monto: '' });
+  const [edicionPago, setEdicionPago] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
 
   const cargar = useCallback(async () => {
     const { data: c } = await supabase.from('v_clientes_estado').select('*').eq('codigo', codigo).single();
@@ -118,13 +118,33 @@ export default function FichaClientePage() {
 
   function empezarEdicionPago(p) {
     setEditandoPagoId(p.id);
-    setEdicionPago({ fecha_pago: p.fecha_pago.slice(0, 10), monto: p.monto });
+    setEdicionPago({
+      fecha_pago: p.fecha_pago.slice(0, 10),
+      monto: p.monto,
+      tipo_pago: p.tipo_pago || 'Mensual',
+      mes_corresponde: (p.mes_corresponde || p.fecha_pago).slice(0, 7),
+      meses_cubiertos: p.meses_cubiertos || 1,
+    });
   }
 
   async function guardarEdicionPago(pagoId) {
+    const mesesCubiertos =
+      edicionPago.tipo_pago === 'Semestral'
+        ? 6
+        : edicionPago.tipo_pago === 'Anual'
+          ? 12
+          : edicionPago.tipo_pago === 'Personalizado'
+            ? Number(edicionPago.meses_cubiertos)
+            : 1;
     const { error } = await supabase
       .from('pagos')
-      .update({ fecha_pago: edicionPago.fecha_pago, monto: Number(edicionPago.monto) })
+      .update({
+        fecha_pago: edicionPago.fecha_pago,
+        monto: Number(edicionPago.monto),
+        tipo_pago: edicionPago.tipo_pago,
+        mes_corresponde: `${edicionPago.mes_corresponde}-01`,
+        meses_cubiertos: mesesCubiertos,
+      })
       .eq('id', pagoId);
     if (error) {
       setMsg('Error al modificar pago: ' + error.message);
@@ -404,6 +424,8 @@ export default function FichaClientePage() {
                   <tr className="text-left text-brand-500 border-b border-brand-100">
                     <th className="py-2">Fecha</th>
                     <th className="py-2">Monto</th>
+                    <th className="py-2">Tipo</th>
+                    <th className="py-2">Mes</th>
                     {isAdmin && <th className="py-2"></th>}
                   </tr>
                 </thead>
@@ -429,8 +451,38 @@ export default function FichaClientePage() {
                               onChange={(e) => setEdicionPago({ ...edicionPago, monto: e.target.value })}
                             />
                           </td>
+                          <td className="py-2">
+                            <select
+                              className="input"
+                              value={edicionPago.tipo_pago}
+                              onChange={(e) => setEdicionPago({ ...edicionPago, tipo_pago: e.target.value })}
+                            >
+                              <option value="Mensual">Mensual</option>
+                              <option value="Semestral">Semestral</option>
+                              <option value="Anual">Anual</option>
+                              <option value="Personalizado">Personalizado</option>
+                            </select>
+                          </td>
+                          <td className="py-2">
+                            <input
+                              type="month"
+                              className="input mb-1"
+                              value={edicionPago.mes_corresponde}
+                              onChange={(e) => setEdicionPago({ ...edicionPago, mes_corresponde: e.target.value })}
+                            />
+                            {edicionPago.tipo_pago === 'Personalizado' && (
+                              <input
+                                type="number"
+                                min="1"
+                                className="input"
+                                placeholder="N° meses"
+                                value={edicionPago.meses_cubiertos}
+                                onChange={(e) => setEdicionPago({ ...edicionPago, meses_cubiertos: e.target.value })}
+                              />
+                            )}
+                          </td>
                           {isAdmin && (
-                            <td className="py-2 text-right whitespace-nowrap">
+                            <td className="py-2 text-right whitespace-nowrap align-top">
                               <button onClick={() => guardarEdicionPago(p.id)} className="text-brand-600 hover:underline text-xs mr-2">
                                 Guardar
                               </button>
@@ -444,6 +496,15 @@ export default function FichaClientePage() {
                         <>
                           <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
                           <td className="py-2">{formatBs(p.monto)}</td>
+                          <td className="py-2 text-brand-400 text-xs">
+                            {p.tipo_pago || 'Mensual'}
+                            {p.tipo_pago === 'Personalizado' ? ` (${p.meses_cubiertos} m.)` : ''}
+                          </td>
+                          <td className="py-2 text-brand-400 text-xs capitalize">
+                            {p.mes_corresponde
+                              ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+                              : '—'}
+                          </td>
                           {isAdmin && (
                             <td className="py-2 text-right whitespace-nowrap">
                               <button
