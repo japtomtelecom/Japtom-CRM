@@ -22,6 +22,7 @@ export default function FichaClientePage() {
     monto: '',
     tipo_pago: 'Mensual',
     mes_corresponde: new Date().toISOString().slice(0, 7),
+    meses_personalizado: 2,
   });
   const [mostrarTicket, setMostrarTicket] = useState(false);
   const [motivoFalla, setMotivoFalla] = useState('');
@@ -72,12 +73,21 @@ export default function FichaClientePage() {
     if (!nuevoPago.monto) return;
     if (!confirm(`¿Confirmas registrar un pago de ${formatBs(nuevoPago.monto)} para ${cliente.nombre}?`)) return;
     setGuardando(true);
+    const mesesCubiertos =
+      nuevoPago.tipo_pago === 'Semestral'
+        ? 6
+        : nuevoPago.tipo_pago === 'Anual'
+          ? 12
+          : nuevoPago.tipo_pago === 'Personalizado'
+            ? Number(nuevoPago.meses_personalizado)
+            : 1;
     const { error } = await supabase.from('pagos').insert({
       cliente_id: cliente.id,
       fecha_pago: nuevoPago.fecha,
       monto: Number(nuevoPago.monto),
       tipo_pago: nuevoPago.tipo_pago,
       mes_corresponde: `${nuevoPago.mes_corresponde}-01`,
+      meses_cubiertos: mesesCubiertos,
     });
     setGuardando(false);
     if (!error) {
@@ -86,6 +96,7 @@ export default function FichaClientePage() {
         monto: '',
         tipo_pago: 'Mensual',
         mes_corresponde: new Date().toISOString().slice(0, 7),
+        meses_personalizado: 2,
       });
       setMsg(`✅ Pago de ${formatBs(nuevoPago.monto)} registrado correctamente.`);
       cargar();
@@ -496,8 +507,21 @@ export default function FichaClientePage() {
                   <option value="Mensual">Mensual</option>
                   <option value="Semestral">Semestral (6 meses)</option>
                   <option value="Anual">Anual (12 meses)</option>
+                  <option value="Personalizado">Personalizado (elige cuántos meses)</option>
                 </select>
               </div>
+              {nuevoPago.tipo_pago === 'Personalizado' && (
+                <div>
+                  <label className="label">¿Cuántos meses cubre este pago?</label>
+                  <input
+                    type="number"
+                    min="1"
+                    className="input"
+                    value={nuevoPago.meses_personalizado}
+                    onChange={(e) => setNuevoPago({ ...nuevoPago, meses_personalizado: e.target.value })}
+                  />
+                </div>
+              )}
               <div>
                 <label className="label">¿A qué mes corresponde?</label>
                 <input

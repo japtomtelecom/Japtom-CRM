@@ -19,6 +19,7 @@ export default function PagosPage() {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [monto, setMonto] = useState('');
   const [tipoPago, setTipoPago] = useState('Mensual');
+  const [mesesPersonalizado, setMesesPersonalizado] = useState(2);
   const [mesCorresponde, setMesCorresponde] = useState(mesActualISO());
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
@@ -100,12 +101,15 @@ export default function PagosPage() {
     if (!seleccionado || !monto) return;
     if (!confirm(`¿Confirmas registrar un pago de ${formatBs(monto)} para ${seleccionado.nombre}?`)) return;
     setGuardando(true);
+    const mesesCubiertos =
+      tipoPago === 'Semestral' ? 6 : tipoPago === 'Anual' ? 12 : tipoPago === 'Personalizado' ? Number(mesesPersonalizado) : 1;
     const { error } = await supabase.from('pagos').insert({
       cliente_id: seleccionado.id,
       fecha_pago: fecha,
       monto: Number(monto),
       tipo_pago: tipoPago,
       mes_corresponde: `${mesCorresponde}-01`,
+      meses_cubiertos: mesesCubiertos,
     });
     setGuardando(false);
     if (error) {
@@ -118,6 +122,7 @@ export default function PagosPage() {
     setClientes([]);
     setMonto('');
     setTipoPago('Mensual');
+    setMesesPersonalizado(2);
     setMesCorresponde(mesActualISO());
     cargarPagos();
   }
@@ -191,8 +196,21 @@ export default function PagosPage() {
                 <option value="Mensual">Mensual</option>
                 <option value="Semestral">Semestral (6 meses)</option>
                 <option value="Anual">Anual (12 meses)</option>
+                <option value="Personalizado">Personalizado (elige cuántos meses)</option>
               </select>
             </div>
+            {tipoPago === 'Personalizado' && (
+              <div>
+                <label className="label">¿Cuántos meses cubre este pago?</label>
+                <input
+                  type="number"
+                  min="1"
+                  className="input"
+                  value={mesesPersonalizado}
+                  onChange={(e) => setMesesPersonalizado(e.target.value)}
+                />
+              </div>
+            )}
             <div>
               <label className="label">¿A qué mes corresponde?</label>
               <input
