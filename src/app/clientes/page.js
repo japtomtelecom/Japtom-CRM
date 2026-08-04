@@ -6,7 +6,7 @@ import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
-import { formatBs } from '@/lib/utils';
+import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
 import { exportarExcel } from '@/lib/exportExcel';
 
 function Badge({ cliente }) {
@@ -26,6 +26,7 @@ export default function ClientesPage() {
   const [ciudadFiltro, setCiudadFiltro] = useState('todas');
   const [diaPagoFiltro, setDiaPagoFiltro] = useState('todos');
   const [loading, setLoading] = useState(true);
+  const [config, setConfig] = useState({});
 
   useEffect(() => {
     if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
@@ -39,10 +40,24 @@ export default function ClientesPage() {
         .select('*')
         .order('nombre', { ascending: true });
       setClientes(data || []);
+      const { data: cfgRows } = await supabase.from('config').select('*');
+      const cfg = {};
+      (cfgRows || []).forEach((r) => (cfg[r.clave] = r.valor));
+      setConfig(cfg);
       setLoading(false);
     }
     load();
   }, []);
+
+  async function marcarMensajeEnviado(clienteId) {
+    await supabase
+      .from('clientes')
+      .update({ ultimo_mensaje_enviado: new Date().toISOString() })
+      .eq('id', clienteId);
+    setClientes((prev) =>
+      prev.map((c) => (c.id === clienteId ? { ...c, ultimo_mensaje_enviado: new Date().toISOString() } : c))
+    );
+  }
 
   const diasDisponibles = useMemo(() => {
     const set = new Set();
@@ -157,27 +172,43 @@ export default function ClientesPage() {
                 </td>
               </tr>
             )}
-            {filtrados.map((c) => (
-              <tr key={c.id} className="border-b border-brand-50 hover:bg-brand-50/60">
-                <td className="p-3 font-mono text-xs">{c.codigo}</td>
-                <td className="p-3 font-medium">{c.nombre}</td>
-                <td className="p-3">{c.ciudad || 'El Alto'}</td>
-                <td className="p-3">{c.plan || '—'}</td>
-                <td className="p-3">{formatBs(c.precio)}</td>
-                <td className="p-3">{c.dia_pago ?? '—'}</td>
-                <td className="p-3">
-                  <Badge cliente={c} />
-                </td>
-                <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
-                  {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
-                </td>
-                <td className="p-3 text-right">
-                  <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
-                    Ver ficha →
-                  </Link>
-                </td>
-              </tr>
-            ))}
+            {filtrados.map((c) => {
+              const mensaje = construirMensaje(c, config, config.empresa_nombre);
+              const wa = linkWhatsApp(c.telefono, mensaje);
+              return (
+                <tr key={c.id} className="border-b border-brand-50 hover:bg-brand-50/60">
+                  <td className="p-3 font-mono text-xs">{c.codigo}</td>
+                  <td className="p-3 font-medium">{c.nombre}</td>
+                  <td className="p-3">{c.ciudad || 'El Alto'}</td>
+                  <td className="p-3">{c.plan || '—'}</td>
+                  <td className="p-3">{formatBs(c.precio)}</td>
+                  <td className="p-3">{c.dia_pago ?? '—'}</td>
+                  <td className="p-3">
+                    <Badge cliente={c} />
+                  </td>
+                  <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
+                    {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
+                  </td>
+                  <td className="p-3 text-right whitespace-nowrap">
+                    {wa && (
+                      
+                        href={wa}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => marcarMensajeEnviado(c.id)}
+                        title="Enviar WhatsApp"
+                        className="mr-3"
+                      >
+                        📲
+                      </a>
+                    )}
+                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
+                      Ver ficha →
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
