@@ -41,7 +41,8 @@ export function construirMensaje(cliente, plantillas, empresaNombre) {
   if (cliente.estado === 'Al día') {
     return (plantillas.mensaje_al_dia || '')
       .replaceAll('{nombre}', cliente.nombre)
-      .replaceAll('{plan}', cliente.plan || 'de Internet');
+      .replaceAll('{plan}', cliente.plan || 'de Internet')
+      .replaceAll('{empresa}', empresaNombre || 'Japtom-Telecom');
   }
   return (plantillas.mensaje_recordatorio || '')
     .replaceAll('{nombre}', cliente.nombre)
