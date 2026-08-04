@@ -1,642 +1,216 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
-import { formatBs, linkWhatsApp, construirMensaje, parsearFechaLocal } from '@/lib/utils';
-import { generarTicketFalla } from '@/lib/generarTicket';
+import { useSucursalActiva } from '@/lib/useSucursalActiva';
+import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
+import { exportarExcel } from '@/lib/exportExcel';
 
-export default function FichaClientePage() {
-  const { codigo } = useParams();
-  const router = useRouter();
-  const { isAdmin } = usePerfil();
-  const [cliente, setCliente] = useState(null);
-  const [pagos, setPagos] = useState([]);
+function Badge({ cliente }) {
+  if (!cliente.activo) return <span className="badge-inactivo">Inactivo</span>;
+  return cliente.estado === 'Al día' ? (
+    <span className="badge-al-dia">Al día</span>
+  ) : (
+    <span className="badge-vencido">Vencido</span>
+  );
+}
+
+export default function ClientesPage() {
+  const { sucursalActiva, esFija } = useSucursalActiva();
+  const [clientes, setClientes] = useState([]);
+  const [busqueda, setBusqueda] = useState('');
+  const [filtro, setFiltro] = useState('todos');
+  const [ciudadFiltro, setCiudadFiltro] = useState('todas');
+  const [diaPagoFiltro, setDiaPagoFiltro] = useState('todos');
+  const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState({});
-  const [editando, setEditando] = useState(false);
-  const [form, setForm] = useState(null);
-  const [nuevoPago, setNuevoPago] = useState({
-    fecha: new Date().toISOString().slice(0, 10),
-    monto: '',
-    tipo_pago: 'Mensual',
-    mes_corresponde: new Date().toISOString().slice(0, 7),
-    meses_personalizado: 2,
-  });
-  const [mostrarTicket, setMostrarTicket] = useState(false);
-  const [motivoFalla, setMotivoFalla] = useState('');
-  const [guardando, setGuardando] = useState(false);
-  const [msg, setMsg] = useState('');
-  const [mikrotikCargando, setMikrotikCargando] = useState(false);
-  const [mikrotikMsg, setMikrotikMsg] = useState('');
-  const [editandoPagoId, setEditandoPagoId] = useState(null);
-  const [edicionPago, setEdicionPago] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
-
-  const cargar = useCallback(async () => {
-    const { data: c } = await supabase.from('v_clientes_estado').select('*').eq('codigo', codigo).single();
-    setCliente(c);
-    setForm(c);
-    if (c) {
-      const { data: p } = await supabase
-        .from('pagos')
-        .select('*')
-        .eq('cliente_id', c.id)
-        .order('fecha_pago', { ascending: false });
-      setPagos(p || []);
-    }
-    const { data: cfgRows } = await supabase.from('config').select('*');
-    const cfg = {};
-    (cfgRows || []).forEach((r) => (cfg[r.clave] = r.valor));
-    setConfig(cfg);
-  }, [codigo]);
 
   useEffect(() => {
-    cargar();
-  }, [cargar]);
+    if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
+  }, [sucursalActiva]);
 
-  async function guardarEdicion() {
-    setGuardando(true);
-    const { id, estado, pagado_mes_actual, created_at, ...actualizables } = form;
-    const { error } = await supabase.from('clientes').update(actualizables).eq('id', id);
-    setGuardando(false);
-    if (!error) {
-      setEditando(false);
-      cargar();
-    } else {
-      setMsg('Error al guardar: ' + error.message);
+  useEffect(() => {
+    async function load() {
+      setLoading(true);
+      const { data } = await supabase
+        .from('v_clientes_estado')
+        .select('*')
+        .order('nombre', { ascending: true });
+      setClientes(data || []);
+      const { data: cfgRows } = await supabase.from('config').select('*');
+      const cfg = {};
+      (cfgRows || []).forEach((r) => (cfg[r.clave] = r.valor));
+      setConfig(cfg);
+      setLoading(false);
     }
-  }
+    load();
+  }, []);
 
-  async function registrarPago(e) {
-    e.preventDefault();
-    if (!nuevoPago.monto) return;
-    if (!confirm(`¿Confirmas registrar un pago de ${formatBs(nuevoPago.monto)} para ${cliente.nombre}?`)) return;
-    setGuardando(true);
-    const mesesCubiertos =
-      nuevoPago.tipo_pago === 'Semestral'
-        ? 6
-        : nuevoPago.tipo_pago === 'Anual'
-          ? 12
-          : nuevoPago.tipo_pago === 'Personalizado'
-            ? Number(nuevoPago.meses_personalizado)
-            : 1;
-    const { error } = await supabase.from('pagos').insert({
-      cliente_id: cliente.id,
-      fecha_pago: nuevoPago.fecha,
-      monto: Number(nuevoPago.monto),
-      tipo_pago: nuevoPago.tipo_pago,
-      mes_corresponde: `${nuevoPago.mes_corresponde}-01`,
-      meses_cubiertos: mesesCubiertos,
-    });
-    setGuardando(false);
-    if (!error) {
-      setNuevoPago({
-        fecha: new Date().toISOString().slice(0, 10),
-        monto: '',
-        tipo_pago: 'Mensual',
-        mes_corresponde: new Date().toISOString().slice(0, 7),
-        meses_personalizado: 2,
-      });
-      setMsg(`✅ Pago de ${formatBs(nuevoPago.monto)} registrado correctamente.`);
-      cargar();
-    } else {
-      setMsg('Error al registrar pago: ' + error.message);
-    }
-  }
-
-  async function borrarPago(pagoId, montoTexto) {
-    if (!confirm(`¿Borrar el pago de ${montoTexto}? Esta acción no se puede deshacer.`)) return;
-    if (!confirm('Confirma una vez más: ¿SEGURO que quieres borrar este pago definitivamente?')) return;
-    const { error } = await supabase.from('pagos').delete().eq('id', pagoId);
-    if (error) {
-      setMsg('Error al borrar pago: ' + error.message);
-    } else {
-      cargar();
-    }
-  }
-
-  function empezarEdicionPago(p) {
-    setEditandoPagoId(p.id);
-    setEdicionPago({
-      fecha_pago: p.fecha_pago.slice(0, 10),
-      monto: p.monto,
-      tipo_pago: p.tipo_pago || 'Mensual',
-      mes_corresponde: (p.mes_corresponde || p.fecha_pago).slice(0, 7),
-      meses_cubiertos: p.meses_cubiertos || 1,
-    });
-  }
-
-  async function guardarEdicionPago(pagoId) {
-    const mesesCubiertos =
-      edicionPago.tipo_pago === 'Semestral'
-        ? 6
-        : edicionPago.tipo_pago === 'Anual'
-          ? 12
-          : edicionPago.tipo_pago === 'Personalizado'
-            ? Number(edicionPago.meses_cubiertos)
-            : 1;
-    const { error } = await supabase
-      .from('pagos')
-      .update({
-        fecha_pago: edicionPago.fecha_pago,
-        monto: Number(edicionPago.monto),
-        tipo_pago: edicionPago.tipo_pago,
-        mes_corresponde: `${edicionPago.mes_corresponde}-01`,
-        meses_cubiertos: mesesCubiertos,
-      })
-      .eq('id', pagoId);
-    if (error) {
-      setMsg('Error al modificar pago: ' + error.message);
-      return;
-    }
-    setEditandoPagoId(null);
-    cargar();
-  }
-
-  async function borrarCliente() {
-    if (
-      !confirm(
-        `¿Seguro que quieres BORRAR PERMANENTEMENTE a ${cliente.nombre} y todo su historial de pagos? Esta acción no se puede deshacer.\n\nSi solo quieres que deje de aparecer como activo, usa "Editar" y marca Activo: No en su lugar.`
-      )
-    )
-      return;
-    const confirmacion = prompt(
-      `Para confirmar, escribe el ID del cliente (${cliente.codigo}) tal cual, en mayúsculas:`
-    );
-    if (confirmacion !== cliente.codigo) {
-      alert('El ID no coincide. No se borró nada.');
-      return;
-    }
-    const { error } = await supabase.from('clientes').delete().eq('id', cliente.id);
-    if (error) {
-      setMsg('Error al borrar cliente: ' + error.message);
-    } else {
-      router.push('/clientes');
-    }
-  }
-
-  async function llamarMikrotik(ruta, body) {
-    setMikrotikCargando(true);
-    setMikrotikMsg('');
-    try {
-      const { data: sesion } = await supabase.auth.getSession();
-      const res = await fetch(`/api/mikrotik/${ruta}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${sesion?.session?.access_token}`,
-        },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        setMikrotikMsg('❌ ' + (data.error || 'Ocurrió un error.'));
-      } else {
-        setMikrotikMsg('✅ ' + data.mensaje);
-      }
-    } catch (e) {
-      setMikrotikMsg('❌ No se pudo conectar: ' + e.message);
-    } finally {
-      setMikrotikCargando(false);
-    }
-  }
-
-  async function cortarServicio() {
-    if (!confirm(`¿Cortar el servicio de internet de ${cliente.nombre} ahora mismo?`)) return;
-    await llamarMikrotik('toggle', { clienteId: cliente.id, activar: false });
-  }
-
-  async function reactivarServicio() {
-    await llamarMikrotik('toggle', { clienteId: cliente.id, activar: true });
-  }
-
-  async function sincronizarPlan() {
-    await llamarMikrotik('cambiar-plan', { clienteId: cliente.id });
-  }
-
-  async function crearUsuarioMikrotik() {
-    if (!confirm(`¿Crear el usuario PPPoE "${cliente.pppoe_usuario}" en el MikroTik de ${cliente.ciudad}?`)) return;
-    await llamarMikrotik('crear-usuario', { clienteId: cliente.id });
-  }
-
-  async function marcarMensajeEnviado() {
-    await supabase.from('clientes').update({ ultimo_mensaje_enviado: new Date().toISOString() }).eq('id', cliente.id);
-    cargar();
-  }
-
-  async function generarTicket() {
-    if (!confirm(`¿Confirmas generar el ticket de falla para ${cliente.nombre}?`)) return;
-    await generarTicketFalla(cliente, motivoFalla, config.empresa_nombre);
-    setMostrarTicket(false);
-    setMotivoFalla('');
-  }
-
-  if (!cliente) {
-    return (
-      <AppShell>
-        <p className="text-brand-400">Cargando ficha de cliente…</p>
-      </AppShell>
+  async function marcarMensajeEnviado(clienteId) {
+    await supabase
+      .from('clientes')
+      .update({ ultimo_mensaje_enviado: new Date().toISOString() })
+      .eq('id', clienteId);
+    setClientes((prev) =>
+      prev.map((c) => (c.id === clienteId ? { ...c, ultimo_mensaje_enviado: new Date().toISOString() } : c))
     );
   }
 
-  const mensaje = construirMensaje(cliente, config, config.empresa_nombre);
-  const wa = linkWhatsApp(cliente.telefono, mensaje);
-  const totalHistorico = pagos.reduce((acc, p) => acc + Number(p.monto), 0);
+  const diasDisponibles = useMemo(() => {
+    const set = new Set();
+    clientes.forEach((c) => {
+      if (c.dia_pago !== null && c.dia_pago !== undefined) set.add(Number(c.dia_pago));
+    });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [clientes]);
+
+  const filtrados = useMemo(() => {
+    let lista = clientes;
+    if (ciudadFiltro !== 'todas') lista = lista.filter((c) => c.ciudad === ciudadFiltro);
+    if (filtro === 'activos') lista = lista.filter((c) => c.activo);
+    if (filtro === 'inactivos') lista = lista.filter((c) => !c.activo);
+    if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
+    if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
+    if (diaPagoFiltro !== 'todos') {
+      lista = lista.filter((c) => Number(c.dia_pago) === Number(diaPagoFiltro));
+    }
+    if (busqueda.trim()) {
+      const q = busqueda.trim().toLowerCase();
+      lista = lista.filter(
+        (c) => c.nombre.toLowerCase().includes(q) || c.codigo.toLowerCase().includes(q)
+      );
+    }
+    return lista;
+  }, [clientes, busqueda, filtro, ciudadFiltro, diaPagoFiltro]);
 
   return (
     <AppShell>
-      <button onClick={() => router.push('/clientes')} className="text-brand-500 text-sm mb-4">
-        ← Volver a Clientes
-      </button>
-
-      <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
         <div>
-          <div className="text-brand-400 text-xs font-mono">{cliente.codigo}</div>
-          <h1 className="font-display text-2xl font-bold text-brand-800">{cliente.nombre}</h1>
-          <div className="mt-1">
-            {!cliente.activo ? (
-              <span className="badge-inactivo">Inactivo</span>
-            ) : cliente.estado === 'Al día' ? (
-              <span className="badge-al-dia">Al día</span>
-            ) : (
-              <span className="badge-vencido">Vencido</span>
-            )}
-          </div>
+          <h1 className="font-display text-2xl font-bold text-brand-800">Clientes</h1>
+          <p className="text-brand-500 text-sm">{clientes.length} clientes registrados</p>
         </div>
         <div className="flex gap-2">
-          {wa && (
-            <a
-              href={wa}
-              target="_blank"
-              rel="noreferrer"
-              onClick={() => marcarMensajeEnviado()}
-              className="btn-whatsapp"
-            >
-              📲 Enviar WhatsApp
-            </a>
-          )}
-          <button onClick={() => setMostrarTicket((v) => !v)} className="btn-secondary">
-            🎫 Ticket de falla
+          <button onClick={() => exportarExcel()} className="btn-secondary">
+            ⬇️ Excel
           </button>
-          <button onClick={() => setEditando((v) => !v)} className="btn-secondary">
-            {editando ? 'Cancelar' : 'Editar'}
-          </button>
-          {isAdmin && (
-            <button onClick={borrarCliente} className="btn-secondary text-red-500 border-red-200 hover:bg-red-50">
-              Eliminar
-            </button>
-          )}
+          <Link href="/clientes/nuevo" className="btn-primary">
+            + Agregar cliente
+          </Link>
         </div>
       </div>
 
-      {msg && <div className="card p-3 mb-4 text-red-600 text-sm">{msg}</div>}
+      <div className="flex flex-wrap gap-3 mb-4">
+        <input
+          className="input md:max-w-xs"
+          placeholder="Buscar por nombre o ID…"
+          value={busqueda}
+          onChange={(e) => setBusqueda(e.target.value)}
+        />
+        {esFija ? (
+          <span className="input md:max-w-[180px] flex items-center bg-brand-50 text-brand-600">
+            📍 {ciudadFiltro}
+          </span>
+        ) : (
+          <select className="input md:max-w-[180px]" value={ciudadFiltro} onChange={(e) => setCiudadFiltro(e.target.value)}>
+            <option value="todas">Todas las ciudades</option>
+            <option value="El Alto">El Alto</option>
+            <option value="Tarija">Tarija</option>
+          </select>
+        )}
+        <select className="input md:max-w-[180px]" value={filtro} onChange={(e) => setFiltro(e.target.value)}>
+          <option value="todos">Todos</option>
+          <option value="activos">Activos</option>
+          <option value="inactivos">Inactivos</option>
+          <option value="al_dia">Al día</option>
+          <option value="vencidos">Vencidos</option>
+        </select>
+        <select
+          className="input md:max-w-[180px]"
+          value={diaPagoFiltro}
+          onChange={(e) => setDiaPagoFiltro(e.target.value)}
+        >
+          <option value="todos">Día de pago: todos</option>
+          {Array.from({ length: 31 }, (_, i) => i + 1).map((dia) => (
+            <option key={dia} value={dia} disabled={!diasDisponibles.includes(dia)}>
+              Día {dia}
+            </option>
+          ))}
+        </select>
+      </div>
 
-      {mostrarTicket && (
-        <div className="card p-5 mb-6">
-          <h2 className="font-semibold text-brand-700 mb-3">Generar ticket de falla</h2>
-          <p className="text-sm text-brand-500 mb-3">
-            Se incluirá automáticamente: ID, nombre, teléfono, dirección y plan del cliente. Solo describe el motivo.
-          </p>
-          <textarea
-            className="input mb-3"
-            rows={3}
-            placeholder="Ej: Cliente reporta intermitencia en la señal desde ayer por la noche…"
-            value={motivoFalla}
-            onChange={(e) => setMotivoFalla(e.target.value)}
-          />
-          <div className="flex gap-2">
-            <button onClick={generarTicket} className="btn-primary">
-              📄 Descargar PDF
-            </button>
-            <button onClick={() => setMostrarTicket(false)} className="btn-secondary">
-              Cancelar
-            </button>
-          </div>
-        </div>
-      )}
-
-      <div className="grid md:grid-cols-3 gap-6">
-        <div className="md:col-span-2 space-y-6">
-          <div className="card p-5">
-            <h2 className="font-semibold text-brand-700 mb-3">Datos del cliente</h2>
-            {!editando ? (
-              <dl className="grid grid-cols-2 gap-y-3 text-sm">
-                <dt className="text-brand-500">Teléfono</dt>
-                <dd>{cliente.telefono || '—'}</dd>
-                <dt className="text-brand-500">Ciudad</dt>
-                <dd>{cliente.ciudad || 'El Alto'}</dd>
-                <dt className="text-brand-500">Día de pago</dt>
-                <dd>{cliente.dia_pago ?? '—'}</dd>
-                <dt className="text-brand-500">Plan</dt>
-                <dd>{cliente.plan || '—'}</dd>
-                <dt className="text-brand-500">Velocidad</dt>
-                <dd>{cliente.velocidad || '—'}</dd>
-                <dt className="text-brand-500">Frecuencia</dt>
-                <dd>{cliente.frecuencia || '—'}</dd>
-                <dt className="text-brand-500">Precio</dt>
-                <dd>{formatBs(cliente.precio)}</dd>
-                <dt className="text-brand-500">Dirección</dt>
-                <dd>{cliente.direccion || '—'}</dd>
-                <dt className="text-brand-500">Activo</dt>
-                <dd>{cliente.activo ? 'Sí' : 'No'}</dd>
-                <dt className="text-brand-500">Usuario PPPoE</dt>
-                <dd>{cliente.pppoe_usuario || '—'}</dd>
-                <dt className="text-brand-500">Último mensaje enviado</dt>
-                <dd>
-                  {cliente.ultimo_mensaje_enviado
-                    ? new Date(cliente.ultimo_mensaje_enviado).toLocaleString('es-BO')
-                    : '—'}
-                </dd>
-              </dl>
-            ) : (
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="label">Nombre</label>
-                  <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Teléfono</label>
-                  <input className="input" value={form.telefono || ''} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Ciudad</label>
-                  <select className="input" value={form.ciudad || 'El Alto'} onChange={(e) => setForm({ ...form, ciudad: e.target.value })}>
-                    <option value="El Alto">El Alto</option>
-                    <option value="Tarija">Tarija</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Día de pago</label>
-                  <input type="number" className="input" value={form.dia_pago || ''} onChange={(e) => setForm({ ...form, dia_pago: Number(e.target.value) })} />
-                </div>
-                <div>
-                  <label className="label">Plan</label>
-                  <input className="input" value={form.plan || ''} onChange={(e) => setForm({ ...form, plan: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Velocidad</label>
-                  <input className="input" value={form.velocidad || ''} onChange={(e) => setForm({ ...form, velocidad: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Frecuencia</label>
-                  <input className="input" value={form.frecuencia || ''} onChange={(e) => setForm({ ...form, frecuencia: e.target.value })} />
-                </div>
-                <div>
-                  <label className="label">Precio (Bs)</label>
-                  <input type="number" className="input" value={form.precio || ''} onChange={(e) => setForm({ ...form, precio: Number(e.target.value) })} />
-                </div>
-                <div>
-                  <label className="label">Activo</label>
-                  <select className="input" value={form.activo ? 'si' : 'no'} onChange={(e) => setForm({ ...form, activo: e.target.value === 'si' })}>
-                    <option value="si">Sí</option>
-                    <option value="no">No</option>
-                  </select>
-                </div>
-                <div>
-                  <label className="label">Usuario PPPoE</label>
-                  <input className="input" value={form.pppoe_usuario || ''} onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value })} placeholder="Igual que en el MikroTik" />
-                </div>
-                <div>
-                  <label className="label">Contraseña PPPoE</label>
-                  <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })} placeholder="Solo se usa para crearlo en el MikroTik" />
-                </div>
-                <div className="col-span-2">
-                  <label className="label">Dirección</label>
-                  <input className="input" value={form.direccion || ''} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
-                </div>
-                <div className="col-span-2">
-                  <button onClick={guardarEdicion} disabled={guardando} className="btn-primary">
-                    {guardando ? 'Guardando…' : 'Guardar cambios'}
-                  </button>
-                </div>
-              </div>
+      <div className="card overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="text-left text-brand-500 border-b border-brand-100">
+              <th className="p-3">ID</th>
+              <th className="p-3">Cliente</th>
+              <th className="p-3">Ciudad</th>
+              <th className="p-3">Plan</th>
+              <th className="p-3">Precio</th>
+              <th className="p-3">Día de pago</th>
+              <th className="p-3">Estado</th>
+              <th className="p-3" title="¿Ya se le envió mensaje de WhatsApp?">Mensaje</th>
+              <th className="p-3"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={9} className="p-4 text-brand-400">
+                  Cargando…
+                </td>
+              </tr>
             )}
-          </div>
-
-          <div className="card p-5">
-            <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
-            {pagos.length === 0 ? (
-              <p className="text-brand-400 text-sm">Aún no hay pagos registrados.</p>
-            ) : (
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="text-left text-brand-500 border-b border-brand-100">
-                    <th className="py-2">Fecha</th>
-                    <th className="py-2">Monto</th>
-                    <th className="py-2">Tipo</th>
-                    <th className="py-2">Mes</th>
-                    {isAdmin && <th className="py-2"></th>}
-                  </tr>
-                </thead>
-                <tbody>
-                  {pagos.map((p) => (
-                    <tr key={p.id} className="border-b border-brand-50">
-                      {editandoPagoId === p.id ? (
-                        <>
-                          <td className="py-2">
-                            <input
-                              type="date"
-                              className="input"
-                              value={edicionPago.fecha_pago}
-                              onChange={(e) => setEdicionPago({ ...edicionPago, fecha_pago: e.target.value })}
-                            />
-                          </td>
-                          <td className="py-2">
-                            <input
-                              type="number"
-                              step="0.01"
-                              className="input"
-                              value={edicionPago.monto}
-                              onChange={(e) => setEdicionPago({ ...edicionPago, monto: e.target.value })}
-                            />
-                          </td>
-                          <td className="py-2">
-                            <select
-                              className="input"
-                              value={edicionPago.tipo_pago}
-                              onChange={(e) => setEdicionPago({ ...edicionPago, tipo_pago: e.target.value })}
-                            >
-                              <option value="Mensual">Mensual</option>
-                              <option value="Semestral">Semestral</option>
-                              <option value="Anual">Anual</option>
-                              <option value="Personalizado">Personalizado</option>
-                            </select>
-                          </td>
-                          <td className="py-2">
-                            <input
-                              type="month"
-                              className="input mb-1"
-                              value={edicionPago.mes_corresponde}
-                              onChange={(e) => setEdicionPago({ ...edicionPago, mes_corresponde: e.target.value })}
-                            />
-                            {edicionPago.tipo_pago === 'Personalizado' && (
-                              <input
-                                type="number"
-                                min="1"
-                                className="input"
-                                placeholder="N° meses"
-                                value={edicionPago.meses_cubiertos}
-                                onChange={(e) => setEdicionPago({ ...edicionPago, meses_cubiertos: e.target.value })}
-                              />
-                            )}
-                          </td>
-                          {isAdmin && (
-                            <td className="py-2 text-right whitespace-nowrap align-top">
-                              <button onClick={() => guardarEdicionPago(p.id)} className="text-brand-600 hover:underline text-xs mr-2">
-                                Guardar
-                              </button>
-                              <button onClick={() => setEditandoPagoId(null)} className="text-brand-400 hover:underline text-xs">
-                                Cancelar
-                              </button>
-                            </td>
-                          )}
-                        </>
-                      ) : (
-                        <>
-                          <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
-                          <td className="py-2">{formatBs(p.monto)}</td>
-                          <td className="py-2 text-brand-400 text-xs">
-                            {p.tipo_pago || 'Mensual'}
-                            {p.tipo_pago === 'Personalizado' ? ` (${p.meses_cubiertos} m.)` : ''}
-                          </td>
-                          <td className="py-2 text-brand-400 text-xs capitalize">
-                            {p.mes_corresponde
-                              ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
-                              : '—'}
-                          </td>
-                          {isAdmin && (
-                            <td className="py-2 text-right whitespace-nowrap">
-                              <button
-                                onClick={() => empezarEdicionPago(p)}
-                                className="text-brand-600 hover:underline text-xs mr-3"
-                              >
-                                Editar
-                              </button>
-                              <button
-                                onClick={() => borrarPago(p.id, formatBs(p.monto))}
-                                className="text-red-500 hover:underline text-xs"
-                              >
-                                Borrar
-                              </button>
-                            </td>
-                          )}
-                        </>
-                      )}
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            {!loading && filtrados.length === 0 && (
+              <tr>
+                <td colSpan={9} className="p-4 text-brand-400">
+                  No se encontraron clientes.
+                </td>
+              </tr>
             )}
-            <div className="mt-3 text-sm text-brand-600 font-medium">
-              Total histórico pagado: {formatBs(totalHistorico)} · {pagos.length} pagos
-            </div>
-          </div>
-        </div>
-
-        <div className="space-y-6">
-          <div className="card p-5">
-            <h2 className="font-semibold text-brand-700 mb-3">Registrar pago</h2>
-            <form onSubmit={registrarPago} className="space-y-3">
-              <div>
-                <label className="label">Fecha</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={nuevoPago.fecha}
-                  onChange={(e) => setNuevoPago({ ...nuevoPago, fecha: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label">Monto (Bs)</label>
-                <input
-                  type="number"
-                  step="0.01"
-                  className="input"
-                  placeholder={cliente.precio}
-                  value={nuevoPago.monto}
-                  onChange={(e) => setNuevoPago({ ...nuevoPago, monto: e.target.value })}
-                />
-              </div>
-              <div>
-                <label className="label">Tipo de pago</label>
-                <select
-                  className="input"
-                  value={nuevoPago.tipo_pago}
-                  onChange={(e) => setNuevoPago({ ...nuevoPago, tipo_pago: e.target.value })}
-                >
-                  <option value="Mensual">Mensual</option>
-                  <option value="Semestral">Semestral (6 meses)</option>
-                  <option value="Anual">Anual (12 meses)</option>
-                  <option value="Personalizado">Personalizado (elige cuántos meses)</option>
-                </select>
-              </div>
-              {nuevoPago.tipo_pago === 'Personalizado' && (
-                <div>
-                  <label className="label">¿Cuántos meses cubre este pago?</label>
-                  <input
-                    type="number"
-                    min="1"
-                    className="input"
-                    value={nuevoPago.meses_personalizado}
-                    onChange={(e) => setNuevoPago({ ...nuevoPago, meses_personalizado: e.target.value })}
-                  />
-                </div>
-              )}
-              <div>
-                <label className="label">¿A qué mes corresponde?</label>
-                <input
-                  type="month"
-                  className="input"
-                  value={nuevoPago.mes_corresponde}
-                  onChange={(e) => setNuevoPago({ ...nuevoPago, mes_corresponde: e.target.value })}
-                />
-              </div>
-              <button type="submit" disabled={guardando} className="btn-primary w-full">
-                {guardando ? 'Registrando…' : 'Registrar pago'}
-              </button>
-            </form>
-          </div>
-
-          <div className="card p-5">
-            <h2 className="font-semibold text-brand-700 mb-3">Vista previa del mensaje</h2>
-            <p className="text-sm text-brand-600 whitespace-pre-wrap bg-brand-50 rounded-lg p-3">{mensaje}</p>
-          </div>
-
-          {isAdmin && (
-            <div className="card p-5">
-              <h2 className="font-semibold text-brand-700 mb-3">Control de servicio (MikroTik)</h2>
-              {!cliente.pppoe_usuario ? (
-                <p className="text-sm text-brand-400">
-                  Este cliente no tiene un "Usuario PPPoE" configurado — agrégalo en "Editar" para poder
-                  activarlo/cortarlo desde aquí.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {cliente.pppoe_password && (
-                    <button onClick={crearUsuarioMikrotik} disabled={mikrotikCargando} className="btn-secondary w-full">
-                      ➕ Crear usuario en MikroTik
-                    </button>
-                  )}
-                  <button onClick={reactivarServicio} disabled={mikrotikCargando} className="btn-secondary w-full">
-                    ▶️ Reactivar servicio
-                  </button>
-                  <button
-                    onClick={cortarServicio}
-                    disabled={mikrotikCargando}
-                    className="btn-secondary w-full text-red-500 border-red-200 hover:bg-red-50"
-                  >
-                    ⛔ Cortar servicio
-                  </button>
-                  <button onClick={sincronizarPlan} disabled={mikrotikCargando} className="btn-secondary w-full">
-                    🔄 Sincronizar plan al MikroTik
-                  </button>
-                </div>
-              )}
-              {mikrotikMsg && <p className="text-sm mt-3">{mikrotikMsg}</p>}
-            </div>
-          )}
-        </div>
+            {filtrados.map((c) => {
+              const mensaje = construirMensaje(c, config, config.empresa_nombre);
+              const wa = linkWhatsApp(c.telefono, mensaje);
+              return (
+                <tr key={c.id} className="border-b border-brand-50 hover:bg-brand-50/60">
+                  <td className="p-3 font-mono text-xs">{c.codigo}</td>
+                  <td className="p-3 font-medium">{c.nombre}</td>
+                  <td className="p-3">{c.ciudad || 'El Alto'}</td>
+                  <td className="p-3">{c.plan || '—'}</td>
+                  <td className="p-3">{formatBs(c.precio)}</td>
+                  <td className="p-3">{c.dia_pago ?? '—'}</td>
+                  <td className="p-3">
+                    <Badge cliente={c} />
+                  </td>
+                  <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
+                    {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
+                  </td>
+                  <td className="p-3 text-right whitespace-nowrap">
+                    {wa && (
+                      
+                        href={wa}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => marcarMensajeEnviado(c.id)}
+                        title="Enviar WhatsApp"
+                        className="mr-3"
+                      >
+                        📲
+                      </a>
+                    )}
+                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
+                      Ver ficha →
+                    </Link>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
       </div>
     </AppShell>
   );
