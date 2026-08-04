@@ -24,6 +24,7 @@ export default function ClientesPage() {
   const [busqueda, setBusqueda] = useState('');
   const [filtro, setFiltro] = useState('todos');
   const [ciudadFiltro, setCiudadFiltro] = useState('todas');
+  const [diaPagoFiltro, setDiaPagoFiltro] = useState('todos');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -43,6 +44,14 @@ export default function ClientesPage() {
     load();
   }, []);
 
+  const diasDisponibles = useMemo(() => {
+    const set = new Set();
+    clientes.forEach((c) => {
+      if (c.dia_pago !== null && c.dia_pago !== undefined) set.add(Number(c.dia_pago));
+    });
+    return Array.from(set).sort((a, b) => a - b);
+  }, [clientes]);
+
   const filtrados = useMemo(() => {
     let lista = clientes;
     if (ciudadFiltro !== 'todas') lista = lista.filter((c) => c.ciudad === ciudadFiltro);
@@ -50,6 +59,9 @@ export default function ClientesPage() {
     if (filtro === 'inactivos') lista = lista.filter((c) => !c.activo);
     if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
     if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
+    if (diaPagoFiltro !== 'todos') {
+      lista = lista.filter((c) => Number(c.dia_pago) === Number(diaPagoFiltro));
+    }
     if (busqueda.trim()) {
       const q = busqueda.trim().toLowerCase();
       lista = lista.filter(
@@ -57,7 +69,7 @@ export default function ClientesPage() {
       );
     }
     return lista;
-  }, [clientes, busqueda, filtro, ciudadFiltro]);
+  }, [clientes, busqueda, filtro, ciudadFiltro, diaPagoFiltro]);
 
   return (
     <AppShell>
@@ -100,6 +112,18 @@ export default function ClientesPage() {
           <option value="inactivos">Inactivos</option>
           <option value="al_dia">Al día</option>
           <option value="vencidos">Vencidos</option>
+        </select>
+        <select
+          className="input md:max-w-[180px]"
+          value={diaPagoFiltro}
+          onChange={(e) => setDiaPagoFiltro(e.target.value)}
+        >
+          <option value="todos">Día de pago: todos</option>
+          {Array.from({ length: 31 }, (_, i) => i + 1).map((dia) => (
+            <option key={dia} value={dia} disabled={!diasDisponibles.includes(dia)}>
+              Día {dia}
+            </option>
+          ))}
         </select>
       </div>
 
