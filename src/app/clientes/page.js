@@ -191,7 +191,7 @@ export default function ClientesPage() {
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     {wa && (
-                      
+                      <a
                         href={wa}
                         target="_blank"
                         rel="noreferrer"
