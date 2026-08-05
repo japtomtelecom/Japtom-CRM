@@ -13,10 +13,9 @@ function nombreMesCorto(periodo) {
   return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
 }
 
-// Genera un .xlsx con la misma estructura que el Excel original (CLIENTES, PAGOS, PLANES, RESUMEN)
-// más una hoja RESUMEN MENSUAL con una fila por cliente y una columna por mes.
-export async function exportarExcel() {
-  const [{ data: clientes }, { data: pagos }, { data: planes }, { data: dashboard }, { data: registroMensual }] =
+// ciudadFiltro: 'El Alto' | 'Tarija' | null (null = todas las ciudades juntas)
+export async function exportarExcel(ciudadFiltro = null) {
+  const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: dashboard }, { data: registroTodo }] =
     await Promise.all([
       supabase.from('v_clientes_estado').select('*').order('nombre', { ascending: true }),
       supabase
@@ -28,9 +27,21 @@ export async function exportarExcel() {
       supabase.from('v_registro_pagos_mensual').select('*'),
     ]);
 
+  const clientes = ciudadFiltro
+    ? (clientesTodos || []).filter((c) => c.ciudad === ciudadFiltro)
+    : clientesTodos || [];
+
+  const pagos = ciudadFiltro
+    ? (pagosTodos || []).filter((p) => p.clientes?.ciudad === ciudadFiltro)
+    : pagosTodos || [];
+
+  const registroMensual = ciudadFiltro
+    ? (registroTodo || []).filter((r) => r.ciudad === ciudadFiltro)
+    : registroTodo || [];
+
   const wb = XLSX.utils.book_new();
 
-  const hojaClientes = (clientes || []).map((c) => ({
+  const hojaClientes = clientes.map((c) => ({
     ID: c.codigo,
     Cliente: c.nombre,
     Ciudad: c.ciudad || 'El Alto',
@@ -49,7 +60,7 @@ export async function exportarExcel() {
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaClientes), 'CLIENTES');
 
-  const hojaPagos = (pagos || []).map((p) => ({
+  const hojaPagos = pagos.map((p) => ({
     'ID Cliente': p.clientes?.codigo || '',
     'Fecha de Pago': new Date(p.fecha_pago).toLocaleDateString('es-BO'),
     Cliente: p.clientes?.nombre || '',
@@ -70,7 +81,7 @@ export async function exportarExcel() {
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaPlanes), 'PLANES');
 
-  if (dashboard) {
+  if (dashboard && !ciudadFiltro) {
     const hojaResumen = [
       { Indicador: 'Total Clientes', Valor: dashboard.total_clientes },
       { Indicador: 'Clientes Activos', Valor: dashboard.clientes_activos },
@@ -86,12 +97,12 @@ export async function exportarExcel() {
 
   // --- RESUMEN MENSUAL: una fila por cliente, una columna por mes ---
   const clientePorId = {};
-  (clientes || []).forEach((c) => (clientePorId[c.id] = c));
+  clientes.forEach((c) => (clientePorId[c.id] = c));
 
-  const periodos = [...new Set((registroMensual || []).map((r) => r.periodo))].sort();
+  const periodos = [...new Set(registroMensual.map((r) => r.periodo))].sort();
 
   const porCliente = {};
-  (registroMensual || []).forEach((r) => {
+  registroMensual.forEach((r) => {
     if (!porCliente[r.cliente_id]) {
       const c = clientePorId[r.cliente_id];
       porCliente[r.cliente_id] = {
@@ -120,6 +131,7 @@ export async function exportarExcel() {
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumenMensual), 'RESUMEN MENSUAL');
 
+  const sufijoCiudad = ciudadFiltro ? `_${ciudadFiltro.replace(/\s+/g, '')}` : '';
   const fecha = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `JapTom_CRM_${fecha}.xlsx`);
+  XLSX.writeFile(wb, `JapTom_CRM${sufijoCiudad}_${fecha}.xlsx`);
 }
