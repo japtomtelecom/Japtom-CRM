@@ -28,17 +28,38 @@ function PagosPageInner() {
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
-
-  async function cargarPagos() {
-    const { data } = await supabase
+async function cargarPagos() {
+    const { data, error } = await supabase
       .from('pagos')
       .select(
-        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes(codigo, nombre, telefono, activo, estado, plan, precio, dia_pago)'
+        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes(codigo, nombre, telefono, activo, plan, precio, dia_pago)'
       )
       .order('fecha_pago', { ascending: false })
       .limit(50);
-    setPagos(data || []);
+
+    if (error) {
+      console.error('Error al cargar pagos:', error);
+      setPagos([]);
+      return;
+    }
+
+    const idsClientes = [...new Set((data || []).map((p) => p.cliente_id))];
+    const { data: estados } = await supabase
+      .from('v_clientes_estado')
+      .select('id, estado')
+      .in('id', idsClientes);
+
+    const estadoPorId = {};
+    (estados || []).forEach((e) => (estadoPorId[e.id] = e.estado));
+
+    const pagosConEstado = (data || []).map((p) => ({
+      ...p,
+      clientes: p.clientes ? { ...p.clientes, estado: estadoPorId[p.cliente_id] } : null,
+    }));
+
+    setPagos(pagosConEstado);
   }
+  
 
   useEffect(() => {
     cargarPagos();
