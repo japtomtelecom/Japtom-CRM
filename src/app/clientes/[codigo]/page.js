@@ -1,216 +1,294 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
-import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
-import { exportarExcel } from '@/lib/exportExcel';
 
-function Badge({ cliente }) {
-  if (!cliente.activo) return <span className="badge-inactivo">Inactivo</span>;
-  return cliente.estado === 'Al día' ? (
-    <span className="badge-al-dia">Al día</span>
-  ) : (
-    <span className="badge-vencido">Vencido</span>
-  );
-}
+export default function FichaClientePage() {
+  const params = useParams();
+  const router = useRouter();
+  const { isAdmin } = usePerfil();
+  const codigo = params.codigo;
 
-export default function ClientesPage() {
-  const { sucursalActiva, esFija } = useSucursalActiva();
-  const [clientes, setClientes] = useState([]);
-  const [busqueda, setBusqueda] = useState('');
-  const [filtro, setFiltro] = useState('todos');
-  const [ciudadFiltro, setCiudadFiltro] = useState('todas');
-  const [diaPagoFiltro, setDiaPagoFiltro] = useState('todos');
-  const [loading, setLoading] = useState(true);
+  const [cliente, setCliente] = useState(null);
+  const [pagos, setPagos] = useState([]);
   const [config, setConfig] = useState({});
+  const [loading, setLoading] = useState(true);
+  const [editando, setEditando] = useState(false);
+  const [form, setForm] = useState(null);
+  const [guardando, setGuardando] = useState(false);
+  const [msg, setMsg] = useState('');
 
-  useEffect(() => {
-    if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
-  }, [sucursalActiva]);
+  async function cargar() {
+    setLoading(true);
+    const { data: c } = await supabase
+      .from('v_clientes_estado')
+      .select('*')
+      .eq('codigo', codigo)
+      .single();
+    setCliente(c || null);
+    setForm(c || null);
 
-  useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data } = await supabase
-        .from('v_clientes_estado')
-        .select('*')
-        .order('nombre', { ascending: true });
-      setClientes(data || []);
-      const { data: cfgRows } = await supabase.from('config').select('*');
-      const cfg = {};
-      (cfgRows || []).forEach((r) => (cfg[r.clave] = r.valor));
-      setConfig(cfg);
-      setLoading(false);
+    if (c) {
+      const { data: pagosData } = await supabase
+        .from('pagos')
+        .select('id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos')
+        .eq('cliente_id', c.id)
+        .order('fecha_pago', { ascending: false });
+      setPagos(pagosData || []);
     }
-    load();
-  }, []);
 
-  async function marcarMensajeEnviado(clienteId) {
-    await supabase
+    const { data: cfgRows } = await supabase.from('config').select('*');
+    const cfg = {};
+    (cfgRows || []).forEach((r) => (cfg[r.clave] = r.valor));
+    setConfig(cfg);
+
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    if (codigo) cargar();
+  }, [codigo]);
+
+  async function guardar() {
+    if (!form) return;
+    setGuardando(true);
+    setMsg('');
+    const { error } = await supabase
       .from('clientes')
-      .update({ ultimo_mensaje_enviado: new Date().toISOString() })
-      .eq('id', clienteId);
-    setClientes((prev) =>
-      prev.map((c) => (c.id === clienteId ? { ...c, ultimo_mensaje_enviado: new Date().toISOString() } : c))
+      .update({
+        nombre: form.nombre,
+        telefono: form.telefono,
+        ciudad: form.ciudad,
+        dia_pago: form.dia_pago ? Number(form.dia_pago) : null,
+        activo: form.activo,
+        plan: form.plan,
+        frecuencia: form.frecuencia,
+        precio: form.precio ? Number(form.precio) : 0,
+        velocidad: form.velocidad,
+        direccion: form.direccion,
+        ci: form.ci,
+        costo_instalacion: form.costo_instalacion ? Number(form.costo_instalacion) : 0,
+      })
+      .eq('id', cliente.id);
+    setGuardando(false);
+    if (error) {
+      setMsg('Error al guardar: ' + error.message);
+      return;
+    }
+    setMsg('Cambios guardados correctamente.');
+    setEditando(false);
+    cargar();
+  }
+
+  if (loading) {
+    return (
+      <AppShell>
+        <p className="text-brand-500">Cargando ficha…</p>
+      </AppShell>
     );
   }
 
-  const diasDisponibles = useMemo(() => {
-    const set = new Set();
-    clientes.forEach((c) => {
-      if (c.dia_pago !== null && c.dia_pago !== undefined) set.add(Number(c.dia_pago));
-    });
-    return Array.from(set).sort((a, b) => a - b);
-  }, [clientes]);
+  if (!cliente) {
+    return (
+      <AppShell>
+        <p className="text-brand-500">No se encontró el cliente {codigo}.</p>
+        <Link href="/clientes" className="text-brand-600 hover:underline">
+          ← Volver a Clientes
+        </Link>
+      </AppShell>
+    );
+  }
 
-  const filtrados = useMemo(() => {
-    let lista = clientes;
-    if (ciudadFiltro !== 'todas') lista = lista.filter((c) => c.ciudad === ciudadFiltro);
-    if (filtro === 'activos') lista = lista.filter((c) => c.activo);
-    if (filtro === 'inactivos') lista = lista.filter((c) => !c.activo);
-    if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
-    if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
-    if (diaPagoFiltro !== 'todos') {
-      lista = lista.filter((c) => Number(c.dia_pago) === Number(diaPagoFiltro));
-    }
-    if (busqueda.trim()) {
-      const q = busqueda.trim().toLowerCase();
-      lista = lista.filter(
-        (c) => c.nombre.toLowerCase().includes(q) || c.codigo.toLowerCase().includes(q)
-      );
-    }
-    return lista;
-  }, [clientes, busqueda, filtro, ciudadFiltro, diaPagoFiltro]);
+  const mensaje = construirMensaje(cliente, config, config.empresa_nombre);
+  const wa = linkWhatsApp(cliente.telefono, mensaje);
 
   return (
     <AppShell>
-      <div className="flex flex-wrap items-center justify-between gap-3 mb-6">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="font-display text-2xl font-bold text-brand-800">Clientes</h1>
-          <p className="text-brand-500 text-sm">{clientes.length} clientes registrados</p>
+          <Link href="/clientes" className="text-brand-500 text-sm hover:underline">
+            ← Volver a Clientes
+          </Link>
+          <h1 className="font-display text-2xl font-bold text-brand-800 mt-1">{cliente.nombre}</h1>
+          <p className="text-brand-500 text-sm font-mono">{cliente.codigo}</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => exportarExcel()} className="btn-secondary">
-            ⬇️ Excel
-          </button>
-          <Link href="/clientes/nuevo" className="btn-primary">
-            + Agregar cliente
-          </Link>
+          {wa && (
+            <a href={wa} target="_blank" rel="noreferrer" className="btn-whatsapp">
+              📲 WhatsApp
+            </a>
+          )}
+          {isAdmin && !editando && (
+            <button onClick={() => setEditando(true)} className="btn-primary">
+              ✏️ Editar
+            </button>
+          )}
         </div>
       </div>
 
-      <div className="flex flex-wrap gap-3 mb-4">
-        <input
-          className="input md:max-w-xs"
-          placeholder="Buscar por nombre o ID…"
-          value={busqueda}
-          onChange={(e) => setBusqueda(e.target.value)}
-        />
-        {esFija ? (
-          <span className="input md:max-w-[180px] flex items-center bg-brand-50 text-brand-600">
-            📍 {ciudadFiltro}
-          </span>
-        ) : (
-          <select className="input md:max-w-[180px]" value={ciudadFiltro} onChange={(e) => setCiudadFiltro(e.target.value)}>
-            <option value="todas">Todas las ciudades</option>
-            <option value="El Alto">El Alto</option>
-            <option value="Tarija">Tarija</option>
-          </select>
-        )}
-        <select className="input md:max-w-[180px]" value={filtro} onChange={(e) => setFiltro(e.target.value)}>
-          <option value="todos">Todos</option>
-          <option value="activos">Activos</option>
-          <option value="inactivos">Inactivos</option>
-          <option value="al_dia">Al día</option>
-          <option value="vencidos">Vencidos</option>
-        </select>
-        <select
-          className="input md:max-w-[180px]"
-          value={diaPagoFiltro}
-          onChange={(e) => setDiaPagoFiltro(e.target.value)}
-        >
-          <option value="todos">Día de pago: todos</option>
-          {Array.from({ length: 31 }, (_, i) => i + 1).map((dia) => (
-            <option key={dia} value={dia} disabled={!diasDisponibles.includes(dia)}>
-              Día {dia}
-            </option>
-          ))}
-        </select>
-      </div>
+      <div className="grid md:grid-cols-3 gap-6 items-start">
+        <div className="card p-5 md:col-span-2">
+          <h2 className="font-semibold text-brand-700 mb-3">Datos del cliente</h2>
 
-      <div className="card overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead>
-            <tr className="text-left text-brand-500 border-b border-brand-100">
-              <th className="p-3">ID</th>
-              <th className="p-3">Cliente</th>
-              <th className="p-3">Ciudad</th>
-              <th className="p-3">Plan</th>
-              <th className="p-3">Precio</th>
-              <th className="p-3">Día de pago</th>
-              <th className="p-3">Estado</th>
-              <th className="p-3" title="¿Ya se le envió mensaje de WhatsApp?">Mensaje</th>
-              <th className="p-3"></th>
-            </tr>
-          </thead>
-          <tbody>
-            {loading && (
-              <tr>
-                <td colSpan={9} className="p-4 text-brand-400">
-                  Cargando…
-                </td>
-              </tr>
-            )}
-            {!loading && filtrados.length === 0 && (
-              <tr>
-                <td colSpan={9} className="p-4 text-brand-400">
-                  No se encontraron clientes.
-                </td>
-              </tr>
-            )}
-            {filtrados.map((c) => {
-              const mensaje = construirMensaje(c, config, config.empresa_nombre);
-              const wa = linkWhatsApp(c.telefono, mensaje);
-              return (
-                <tr key={c.id} className="border-b border-brand-50 hover:bg-brand-50/60">
-                  <td className="p-3 font-mono text-xs">{c.codigo}</td>
-                  <td className="p-3 font-medium">{c.nombre}</td>
-                  <td className="p-3">{c.ciudad || 'El Alto'}</td>
-                  <td className="p-3">{c.plan || '—'}</td>
-                  <td className="p-3">{formatBs(c.precio)}</td>
-                  <td className="p-3">{c.dia_pago ?? '—'}</td>
-                  <td className="p-3">
-                    <Badge cliente={c} />
-                  </td>
-                  <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
-                    {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
-                  </td>
-                  <td className="p-3 text-right whitespace-nowrap">
-                    {wa && (
-                      <a
-                        href={wa}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => marcarMensajeEnviado(c.id)}
-                        title="Enviar WhatsApp"
-                        className="mr-3"
-                      >
-                        📲
-                      </a>
-                    )}
-                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
-                      Ver ficha →
-                    </Link>
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
+          {!editando ? (
+            <div className="grid grid-cols-2 gap-4 text-sm">
+              <div>
+                <span className="text-brand-400">Teléfono</span>
+                <p className="font-medium">{cliente.telefono || '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Ciudad</span>
+                <p className="font-medium">{cliente.ciudad || 'El Alto'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Día de pago</span>
+                <p className="font-medium">{cliente.dia_pago ?? '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Estado</span>
+                <p className="font-medium">{cliente.activo ? cliente.estado : 'Inactivo'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Plan</span>
+                <p className="font-medium">{cliente.plan || '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Frecuencia</span>
+                <p className="font-medium">{cliente.frecuencia || '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Precio</span>
+                <p className="font-medium">{formatBs(cliente.precio)}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Velocidad</span>
+                <p className="font-medium">{cliente.velocidad || '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Dirección</span>
+                <p className="font-medium">{cliente.direccion || '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">CI</span>
+                <p className="font-medium">{cliente.ci || '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Costo de instalación</span>
+                <p className="font-medium">{formatBs(cliente.costo_instalacion || 0)}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Activo</span>
+                <p className="font-medium">{cliente.activo ? 'Sí' : 'No'}</p>
+              </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="label">Nombre</label>
+                <input className="input" value={form.nombre || ''} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Teléfono</label>
+                <input className="input" value={form.telefono || ''} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Ciudad</label>
+                <select className="input" value={form.ciudad || 'El Alto'} onChange={(e) => setForm({ ...form, ciudad: e.target.value })}>
+                  <option value="El Alto">El Alto</option>
+                  <option value="Tarija">Tarija</option>
+                </select>
+              </div>
+              <div>
+                <label className="label">Día de pago</label>
+                <input type="number" min="1" max="31" className="input" value={form.dia_pago ?? ''} onChange={(e) => setForm({ ...form, dia_pago: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Plan</label>
+                <input className="input" value={form.plan || ''} onChange={(e) => setForm({ ...form, plan: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Frecuencia</label>
+                <input className="input" value={form.frecuencia || ''} onChange={(e) => setForm({ ...form, frecuencia: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Precio (Bs)</label>
+                <input type="number" step="0.01" className="input" value={form.precio ?? ''} onChange={(e) => setForm({ ...form, precio: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Velocidad</label>
+                <input className="input" value={form.velocidad || ''} onChange={(e) => setForm({ ...form, velocidad: e.target.value })} />
+              </div>
+              <div className="col-span-2">
+                <label className="label">Dirección</label>
+                <input className="input" value={form.direccion || ''} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">CI</label>
+                <input className="input" value={form.ci || ''} onChange={(e) => setForm({ ...form, ci: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Costo de instalación (Bs)</label>
+                <input type="number" step="0.01" className="input" value={form.costo_instalacion ?? ''} onChange={(e) => setForm({ ...form, costo_instalacion: e.target.value })} />
+              </div>
+              <div className="col-span-2 flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  id="activo"
+                  checked={!!form.activo}
+                  onChange={(e) => setForm({ ...form, activo: e.target.checked })}
+                />
+                <label htmlFor="activo" className="text-sm">Cliente activo</label>
+              </div>
+
+              {msg && <p className="col-span-2 text-sm text-brand-600">{msg}</p>}
+
+              <div className="col-span-2 flex gap-2 mt-2">
+                <button onClick={guardar} disabled={guardando} className="btn-primary">
+                  {guardando ? 'Guardando…' : 'Guardar cambios'}
+                </button>
+                <button
+                  onClick={() => {
+                    setForm(cliente);
+                    setEditando(false);
+                    setMsg('');
+                  }}
+                  className="btn-secondary"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <div className="card p-5 md:col-span-1">
+          <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
+          {pagos.length === 0 ? (
+            <p className="text-sm text-brand-400">Sin pagos registrados.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {pagos.map((p) => (
+                <li key={p.id} className="border-b border-brand-50 pb-2">
+                  <div className="flex justify-between">
+                    <span>{new Date(p.fecha_pago).toLocaleDateString('es-BO')}</span>
+                    <span className="font-medium">{formatBs(p.monto)}</span>
+                  </div>
+                  <div className="text-xs text-brand-400">
+                    {p.tipo_pago || 'Mensual'}
+                    {p.mes_corresponde
+                      ? ' · ' + new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+                      : ''}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </AppShell>
   );
