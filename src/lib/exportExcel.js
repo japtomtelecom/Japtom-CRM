@@ -1,13 +1,20 @@
 import * as XLSX from 'xlsx';
 import { supabase } from './supabaseClient';
 
+const ETIQUETA_STATUS = {
+  pagado: 'Pagado',
+  no_vencido: 'Aún no vence',
+  por_vencer: 'Vencido (1-5 días)',
+  vencido: 'Vencido (+5 días)',
+};
+
 function nombreMesCorto(periodo) {
   const d = new Date(periodo.slice(0, 10) + 'T00:00:00');
-  return d.toLocaleDateString('es-BO', { month: 'long', year: 'numeric' });
+  return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
 }
 
 // Genera un .xlsx con la misma estructura que el Excel original (CLIENTES, PAGOS, PLANES, RESUMEN)
-// más una hoja nueva RESUMEN MENSUAL, desglosada por ciudad.
+// más una hoja RESUMEN MENSUAL con una fila por cliente y una columna por mes.
 export async function exportarExcel() {
   const [{ data: clientes }, { data: pagos }, { data: planes }, { data: dashboard }, { data: registroMensual }] =
     await Promise.all([
@@ -77,55 +84,38 @@ export async function exportarExcel() {
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumen), 'RESUMEN');
   }
 
-  // --- RESUMEN MENSUAL por ciudad ---
-  // Agrupa el registro mensual (estado por cliente/mes) por ciudad + periodo
-  const grupos = {};
+  // --- RESUMEN MENSUAL: una fila por cliente, una columna por mes ---
+  const clientePorId = {};
+  (clientes || []).forEach((c) => (clientePorId[c.id] = c));
+
+  const periodos = [...new Set((registroMensual || []).map((r) => r.periodo))].sort();
+
+  const porCliente = {};
   (registroMensual || []).forEach((r) => {
-    const ciudad = r.ciudad || 'Sin ciudad';
-    const clave = `${ciudad}|${r.periodo}`;
-    if (!grupos[clave]) {
-      grupos[clave] = {
-        ciudad,
-        periodo: r.periodo,
-        total: 0,
-        pagados: 0,
-        no_vencido: 0,
-        por_vencer: 0,
-        vencido: 0,
+    if (!porCliente[r.cliente_id]) {
+      const c = clientePorId[r.cliente_id];
+      porCliente[r.cliente_id] = {
+        Código: c?.codigo || '',
+        Cliente: r.nombre,
+        Ciudad: r.ciudad || c?.ciudad || '',
+        meses: {},
       };
     }
-    grupos[clave].total += 1;
-    if (r.status === 'pagado') grupos[clave].pagados += 1;
-    if (r.status === 'no_vencido') grupos[clave].no_vencido += 1;
-    if (r.status === 'por_vencer') grupos[clave].por_vencer += 1;
-    if (r.status === 'vencido') grupos[clave].vencido += 1;
+    porCliente[r.cliente_id].meses[r.periodo] = ETIQUETA_STATUS[r.status] || r.status;
   });
 
-  // Suma de monto cobrado por ciudad + mes (a partir de los pagos reales)
-  const montoPorClave = {};
-  (pagos || []).forEach((p) => {
-    if (!p.mes_corresponde || !p.clientes?.ciudad) return;
-    const clave = `${p.clientes.ciudad}|${p.mes_corresponde}`;
-    montoPorClave[clave] = (montoPorClave[clave] || 0) + Number(p.monto || 0);
-  });
-
-  const hojaResumenMensual = Object.values(grupos)
-    .sort((a, b) => (a.ciudad + a.periodo).localeCompare(b.ciudad + b.periodo))
-    .map((g) => {
-      const clave = `${g.ciudad}|${g.periodo}`;
-      const pendientes = g.no_vencido + g.por_vencer + g.vencido;
-      return {
-        Ciudad: g.ciudad,
-        Mes: nombreMesCorto(g.periodo),
-        'Total Clientes': g.total,
-        Pagados: g.pagados,
-        'Aún no vence': g.no_vencido,
-        'Vencido (1-5 días)': g.por_vencer,
-        'Vencido (+5 días)': g.vencido,
-        'Total Pendientes': pendientes,
-        '% Al Día': g.total > 0 ? `${Math.round((g.pagados / g.total) * 100)}%` : '0%',
-        'Monto Cobrado (Bs)': montoPorClave[clave] || 0,
+  const hojaResumenMensual = Object.values(porCliente)
+    .sort((a, b) => (a.Ciudad + a.Cliente).localeCompare(b.Ciudad + b.Cliente))
+    .map((c) => {
+      const fila = {
+        Código: c.Código,
+        Cliente: c.Cliente,
+        Ciudad: c.Ciudad,
       };
+      periodos.forEach((p) => {
+        fila[nombreMesCorto(p)] = c.meses[p] || '';
+      });
+      return fila;
     });
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumenMensual), 'RESUMEN MENSUAL');
