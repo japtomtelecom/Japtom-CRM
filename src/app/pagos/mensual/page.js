@@ -13,7 +13,7 @@ const STATUS_STYLE = {
 };
 
 function formatPeriodoCorto(periodo) {
-  const d = new Date(periodo + 'T00:00:00');
+const d = new Date(periodo.slice(0, 10) + 'T00:00:00');
   return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
 }
 
