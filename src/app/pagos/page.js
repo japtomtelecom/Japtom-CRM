@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
+import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs, parsearFechaLocal, construirMensaje, linkWhatsApp } from '@/lib/utils';
 
 function mesActualISO() {
@@ -13,6 +14,7 @@ function mesActualISO() {
 
 function PagosPageInner() {
   const { isAdmin } = usePerfil();
+  const { sucursalActiva } = useSucursalActiva();
   const searchParams = useSearchParams();
   const [pagos, setPagos] = useState([]);
   const [config, setConfig] = useState({});
@@ -28,14 +30,21 @@ function PagosPageInner() {
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
-async function cargarPagos() {
-    const { data, error } = await supabase
+
+  async function cargarPagos() {
+    let query = supabase
       .from('pagos')
       .select(
-        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes(codigo, nombre, telefono, activo, plan, precio, dia_pago)'
+        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes!inner(codigo, nombre, telefono, activo, plan, precio, dia_pago, ciudad)'
       )
       .order('fecha_pago', { ascending: false })
       .limit(50);
+
+    if (sucursalActiva && sucursalActiva !== 'Todas') {
+      query = query.eq('clientes.ciudad', sucursalActiva);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error al cargar pagos:', error);
@@ -47,7 +56,7 @@ async function cargarPagos() {
     const { data: estados } = await supabase
       .from('v_clientes_estado')
       .select('id, estado')
-      .in('id', idsClientes);
+      .in('id', idsClientes.length > 0 ? idsClientes : ['00000000-0000-0000-0000-000000000000']);
 
     const estadoPorId = {};
     (estados || []).forEach((e) => (estadoPorId[e.id] = e.estado));
@@ -59,7 +68,6 @@ async function cargarPagos() {
 
     setPagos(pagosConEstado);
   }
-  
 
   useEffect(() => {
     cargarPagos();
@@ -71,7 +79,7 @@ async function cargarPagos() {
         (data || []).forEach((r) => (cfg[r.clave] = r.valor));
         setConfig(cfg);
       });
-  }, []);
+  }, [sucursalActiva]);
 
   // Si llegamos desde /pagos/mensual con ?cliente_id=...&mes=..., precargar el formulario
   useEffect(() => {
@@ -149,11 +157,17 @@ async function cargarPagos() {
       setClientes([]);
       return;
     }
-    const { data } = await supabase
+    let query = supabase
       .from('v_clientes_estado')
       .select('id, codigo, nombre, precio, telefono, activo, estado, plan, dia_pago')
       .ilike('nombre', `%${q}%`)
       .limit(8);
+
+    if (sucursalActiva && sucursalActiva !== 'Todas') {
+      query = query.eq('ciudad', sucursalActiva);
+    }
+
+    const { data } = await query;
     setClientes(data || []);
   }
 
