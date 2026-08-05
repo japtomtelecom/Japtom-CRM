@@ -213,7 +213,7 @@ export default function PagosPage() {
             </div>
 
             {seleccionado && seleccionado.activo && wa && (
-              >a
+              <a
                 href={wa}
                 target="_blank"
                 rel="noreferrer"
