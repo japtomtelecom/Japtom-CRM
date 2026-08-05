@@ -118,7 +118,7 @@ export default function RegistroMensualPage() {
                     <tr key={nombre} className="border-b border-brand-50">
                       <td className="py-2 pr-2 sticky left-0 bg-white">
                         {wa && (
-                          
+                          <a
                             href={wa}
                             target="_blank"
                             rel="noreferrer"
