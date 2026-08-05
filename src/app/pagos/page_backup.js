@@ -10,18 +10,6 @@ function mesActualISO() {
   return new Date().toISOString().slice(0, 7); // yyyy-mm
 }
 
-const STATUS_STYLE = {
-  pagado: { bg: '#E1F5EE', text: '#085041', label: 'Pagado' },
-  no_vencido: { bg: '#F1EFE8', text: '#5F5E5A', label: 'Aún no vence' },
-  por_vencer: { bg: '#FAEEDA', text: '#854F0B', label: 'Vencido (1-5 días)' },
-  vencido: { bg: '#FCEBEB', text: '#791F1F', label: 'Vencido (+5 días)' },
-};
-
-function formatPeriodoCorto(periodo) {
-  const d = new Date(periodo + 'T00:00:00');
-  return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
-}
-
 export default function PagosPage() {
   const { isAdmin } = usePerfil();
   const [pagos, setPagos] = useState([]);
@@ -39,10 +27,6 @@ export default function PagosPage() {
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
   const [config, setConfig] = useState({});
 
-  // --- Registro mensual (grilla) ---
-  const [registroMensual, setRegistroMensual] = useState([]);
-  const [cargandoRegistro, setCargandoRegistro] = useState(true);
-
   async function cargarPagos() {
     const { data } = await supabase
       .from('pagos')
@@ -52,24 +36,8 @@ export default function PagosPage() {
     setPagos(data || []);
   }
 
-  async function cargarRegistroMensual() {
-    setCargandoRegistro(true);
-    const { data, error } = await supabase
-      .from('v_registro_pagos_mensual')
-      .select('*')
-      .order('nombre')
-      .order('periodo');
-    if (error) {
-      console.error('Error al cargar v_registro_pagos_mensual:', error);
-    } else {
-      setRegistroMensual(data || []);
-    }
-    setCargandoRegistro(false);
-  }
-
   useEffect(() => {
     cargarPagos();
-    cargarRegistroMensual();
     supabase
       .from('config')
       .select('*')
@@ -116,7 +84,6 @@ export default function PagosPage() {
     }
     setEditandoId(null);
     cargarPagos();
-    cargarRegistroMensual();
   }
 
   async function borrarPago(id, montoTexto) {
@@ -127,7 +94,6 @@ export default function PagosPage() {
       setMsg('Error al borrar: ' + error.message);
     } else {
       cargarPagos();
-      cargarRegistroMensual();
     }
   }
 
@@ -148,31 +114,6 @@ export default function PagosPage() {
 
   async function marcarMensajeEnviado(clienteId) {
     await supabase.from('clientes').update({ ultimo_mensaje_enviado: new Date().toISOString() }).eq('id', clienteId);
-  }
-
-  // Al hacer clic en una celda pendiente de la grilla mensual:
-  // busca al cliente completo y precarga el formulario de arriba.
-  async function seleccionarDesdeGrilla(cliente_id, nombre, periodo) {
-    const { data, error } = await supabase
-      .from('v_clientes_estado')
-      .select('id, codigo, nombre, precio, telefono, activo, estado, plan, dia_pago')
-      .eq('id', cliente_id)
-      .single();
-
-    if (error || !data) {
-      setMsg('No se pudo cargar el cliente seleccionado.');
-      return;
-    }
-
-    setSeleccionado(data);
-    setBusqueda(data.nombre);
-    setClientes([]);
-    setMonto(data.precio || '');
-    setTipoPago('Mensual');
-    setMesesPersonalizado(2);
-    setMesCorresponde(periodo.slice(0, 7)); // yyyy-mm-01 -> yyyy-mm
-
-    document.getElementById('form-registrar-pago')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   async function registrar(e) {
@@ -204,89 +145,17 @@ export default function PagosPage() {
     setMesesPersonalizado(2);
     setMesCorresponde(mesActualISO());
     cargarPagos();
-    cargarRegistroMensual();
   }
 
   const mensajeWhatsApp = seleccionado ? construirMensaje(seleccionado, config, config.empresa_nombre) : '';
   const wa = seleccionado ? linkWhatsApp(seleccionado.telefono, mensajeWhatsApp) : null;
 
-  const nombresRegistro = [...new Set(registroMensual.map((r) => r.nombre))];
-  const periodosRegistro = [...new Set(registroMensual.map((r) => r.periodo))].sort();
-
   return (
     <AppShell>
       <h1 className="font-display text-2xl font-bold text-brand-800 mb-6">Pagos</h1>
 
-      {/* --- Grilla: registro mensual por cliente --- */}
-      <div className="card p-5 mb-6">
-        <h2 className="font-semibold text-brand-700 mb-3">Registro mensual por cliente</h2>
-        <div className="flex gap-4 text-xs mb-3">
-          {Object.entries(STATUS_STYLE).map(([key, s]) => (
-            <span key={key} className="flex items-center gap-1.5">
-              <span
-                style={{ width: 10, height: 10, borderRadius: 2, background: s.bg, border: `1px solid ${s.text}`, display: 'inline-block' }}
-              />
-              {s.label}
-            </span>
-          ))}
-        </div>
-
-        {cargandoRegistro ? (
-          <p className="text-sm text-brand-400">Cargando registro...</p>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-left text-brand-500 border-b border-brand-100">
-                  <th className="py-2 pr-4 sticky left-0 bg-white">Cliente</th>
-                  {periodosRegistro.map((p) => (
-                    <th key={p} className="py-2 px-2 text-center whitespace-nowrap">
-                      {formatPeriodoCorto(p)}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {nombresRegistro.map((nombre) => (
-                  <tr key={nombre} className="border-b border-brand-50">
-                    <td className="py-2 pr-4 whitespace-nowrap sticky left-0 bg-white">{nombre}</td>
-                    {periodosRegistro.map((p) => {
-                      const cell = registroMensual.find((r) => r.nombre === nombre && r.periodo === p);
-                      if (!cell) return <td key={p} />;
-                      const style = STATUS_STYLE[cell.status];
-                      return (
-                        <td key={p} className="py-1 px-2 text-center">
-                          <button
-                            type="button"
-                            title={`${formatPeriodoCorto(p)} · ${style.label}`}
-                            onClick={() =>
-                              cell.status !== 'pagado' && seleccionarDesdeGrilla(cell.cliente_id, cell.nombre, cell.periodo)
-                            }
-                            style={{
-                              width: 30,
-                              height: 26,
-                              background: style.bg,
-                              color: style.text,
-                              border: 'none',
-                              borderRadius: 4,
-                              cursor: cell.status !== 'pagado' ? 'pointer' : 'default',
-                            }}
-                          >
-                            {cell.status === 'pagado' ? '✓' : ''}
-                          </button>
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
       <div className="grid md:grid-cols-3 gap-6 items-start">
-        <div id="form-registrar-pago" className="card p-5 md:col-span-1 h-fit">
+        <div className="card p-5 md:col-span-1 h-fit">
           <h2 className="font-semibold text-brand-700 mb-3">Registrar pago rápido</h2>
           <form onSubmit={registrar} className="space-y-3">
             <div>
@@ -322,7 +191,7 @@ export default function PagosPage() {
             </div>
 
             {seleccionado && seleccionado.activo && wa && (
-              
+              <a
                 href={wa}
                 target="_blank"
                 rel="noreferrer"
