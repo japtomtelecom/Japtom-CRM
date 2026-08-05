@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
@@ -12,6 +13,7 @@ function mesActualISO() {
 
 export default function PagosPage() {
   const { isAdmin } = usePerfil();
+  const searchParams = useSearchParams();
   const [pagos, setPagos] = useState([]);
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -47,6 +49,26 @@ export default function PagosPage() {
         setConfig(cfg);
       });
   }, []);
+
+  // Si llegamos desde /pagos/mensual con ?cliente_id=...&mes=..., precargar el formulario
+  useEffect(() => {
+    const clienteId = searchParams.get('cliente_id');
+    const mes = searchParams.get('mes');
+    if (!clienteId) return;
+
+    supabase
+      .from('v_clientes_estado')
+      .select('id, codigo, nombre, precio, telefono, activo, estado, plan, dia_pago')
+      .eq('id', clienteId)
+      .single()
+      .then(({ data }) => {
+        if (!data) return;
+        setSeleccionado(data);
+        setBusqueda(data.nombre);
+        setMonto(data.precio || '');
+        if (mes) setMesCorresponde(mes);
+      });
+  }, [searchParams]);
 
   function empezarEdicion(p) {
     setEditandoId(p.id);
@@ -191,7 +213,7 @@ export default function PagosPage() {
             </div>
 
             {seleccionado && seleccionado.activo && wa && (
-              <a
+              
                 href={wa}
                 target="_blank"
                 rel="noreferrer"
