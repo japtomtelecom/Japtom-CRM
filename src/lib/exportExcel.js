@@ -8,36 +8,17 @@ const ETIQUETA_STATUS = {
   vencido: 'Vencido (+5 días)',
 };
 
+const CIUDADES = ['El Alto', 'Tarija'];
+
 function nombreMesCorto(periodo) {
   const d = new Date(periodo.slice(0, 10) + 'T00:00:00');
   return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
 }
 
-// ciudadFiltro: 'El Alto' | 'Tarija' | null (null = todas las ciudades juntas)
-export async function exportarExcel(ciudadFiltro = null) {
-  const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: dashboard }, { data: registroTodo }] =
-    await Promise.all([
-      supabase.from('v_clientes_estado').select('*').order('nombre', { ascending: true }),
-      supabase
-        .from('pagos')
-        .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre, ciudad)')
-        .order('fecha_pago', { ascending: false }),
-      supabase.from('planes').select('*').order('precio', { ascending: true }),
-      supabase.from('v_dashboard').select('*').single(),
-      supabase.from('v_registro_pagos_mensual').select('*'),
-    ]);
-
-  const clientes = ciudadFiltro
-    ? (clientesTodos || []).filter((c) => c.ciudad === ciudadFiltro)
-    : clientesTodos || [];
-
-  const pagos = ciudadFiltro
-    ? (pagosTodos || []).filter((p) => p.clientes?.ciudad === ciudadFiltro)
-    : pagosTodos || [];
-
-  const registroMensual = ciudadFiltro
-    ? (registroTodo || []).filter((r) => r.ciudad === ciudadFiltro)
-    : registroTodo || [];
+function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTodo }) {
+  const clientes = clientesTodos.filter((c) => (c.ciudad || 'El Alto') === ciudad);
+  const pagos = pagosTodos.filter((p) => (p.clientes?.ciudad || 'El Alto') === ciudad);
+  const registroMensual = registroTodo.filter((r) => (r.ciudad || 'El Alto') === ciudad);
 
   const wb = XLSX.utils.book_new();
 
@@ -64,7 +45,6 @@ export async function exportarExcel(ciudadFiltro = null) {
     'ID Cliente': p.clientes?.codigo || '',
     'Fecha de Pago': new Date(p.fecha_pago).toLocaleDateString('es-BO'),
     Cliente: p.clientes?.nombre || '',
-    Ciudad: p.clientes?.ciudad || '',
     Monto: p.monto,
     'Tipo de Pago': p.tipo_pago || 'Mensual',
     'Mes que Corresponde': p.mes_corresponde
@@ -81,21 +61,20 @@ export async function exportarExcel(ciudadFiltro = null) {
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaPlanes), 'PLANES');
 
-  if (dashboard && !ciudadFiltro) {
-    const hojaResumen = [
-      { Indicador: 'Total Clientes', Valor: dashboard.total_clientes },
-      { Indicador: 'Clientes Activos', Valor: dashboard.clientes_activos },
-      { Indicador: 'Clientes Inactivos', Valor: dashboard.clientes_inactivos },
-      { Indicador: 'Clientes al Día', Valor: dashboard.clientes_al_dia },
-      { Indicador: 'Clientes Vencidos', Valor: dashboard.clientes_vencidos },
-      { Indicador: 'Cobrado Mes Actual (Bs)', Valor: dashboard.cobrado_mes_actual },
-      { Indicador: 'Ingreso Histórico Total (Bs)', Valor: dashboard.ingreso_historico },
-      { Indicador: 'Ticket Promedio por Pago (Bs)', Valor: dashboard.ticket_promedio },
-    ];
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumen), 'RESUMEN');
-  }
+  // RESUMEN simple de esta ciudad
+  const activos = clientes.filter((c) => c.activo).length;
+  const alDia = clientes.filter((c) => c.activo && c.estado === 'Al día').length;
+  const vencidos = clientes.filter((c) => c.activo && c.estado === 'Vencido').length;
+  const hojaResumen = [
+    { Indicador: 'Total Clientes', Valor: clientes.length },
+    { Indicador: 'Clientes Activos', Valor: activos },
+    { Indicador: 'Clientes Inactivos', Valor: clientes.length - activos },
+    { Indicador: 'Clientes al Día', Valor: alDia },
+    { Indicador: 'Clientes Vencidos', Valor: vencidos },
+  ];
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumen), 'RESUMEN');
 
-  // --- RESUMEN MENSUAL: una fila por cliente, una columna por mes ---
+  // RESUMEN MENSUAL: una fila por cliente, una columna por mes
   const clientePorId = {};
   clientes.forEach((c) => (clientePorId[c.id] = c));
 
@@ -108,7 +87,6 @@ export async function exportarExcel(ciudadFiltro = null) {
       porCliente[r.cliente_id] = {
         Código: c?.codigo || '',
         Cliente: r.nombre,
-        Ciudad: r.ciudad || c?.ciudad || '',
         meses: {},
       };
     }
@@ -116,13 +94,9 @@ export async function exportarExcel(ciudadFiltro = null) {
   });
 
   const hojaResumenMensual = Object.values(porCliente)
-    .sort((a, b) => (a.Ciudad + a.Cliente).localeCompare(b.Ciudad + b.Cliente))
+    .sort((a, b) => a.Cliente.localeCompare(b.Cliente))
     .map((c) => {
-      const fila = {
-        Código: c.Código,
-        Cliente: c.Cliente,
-        Ciudad: c.Ciudad,
-      };
+      const fila = { Código: c.Código, Cliente: c.Cliente };
       periodos.forEach((p) => {
         fila[nombreMesCorto(p)] = c.meses[p] || '';
       });
@@ -131,7 +105,33 @@ export async function exportarExcel(ciudadFiltro = null) {
 
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumenMensual), 'RESUMEN MENSUAL');
 
-  const sufijoCiudad = ciudadFiltro ? `_${ciudadFiltro.replace(/\s+/g, '')}` : '';
+  return wb;
+}
+
+// Genera y descarga 2 archivos .xlsx separados: uno para El Alto, otro para Tarija.
+export async function exportarExcel() {
+  const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }] = await Promise.all([
+    supabase.from('v_clientes_estado').select('*').order('nombre', { ascending: true }),
+    supabase
+      .from('pagos')
+      .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre, ciudad)')
+      .order('fecha_pago', { ascending: false }),
+    supabase.from('planes').select('*').order('precio', { ascending: true }),
+    supabase.from('v_registro_pagos_mensual').select('*'),
+  ]);
+
+  const datos = {
+    clientesTodos: clientesTodos || [],
+    pagosTodos: pagosTodos || [],
+    planes: planes || [],
+    registroTodo: registroTodo || [],
+  };
+
   const fecha = new Date().toISOString().slice(0, 10);
-  XLSX.writeFile(wb, `JapTom_CRM${sufijoCiudad}_${fecha}.xlsx`);
+
+  for (const ciudad of CIUDADES) {
+    const wb = construirLibro(ciudad, datos);
+    const sufijo = ciudad.replace(/\s+/g, '');
+    XLSX.writeFile(wb, `JapTom_CRM_${sufijo}_${fecha}.xlsx`);
+  }
 }

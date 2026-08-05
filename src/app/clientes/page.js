@@ -94,7 +94,7 @@ export default function ClientesPage() {
           <p className="text-brand-500 text-sm">{clientes.length} clientes registrados</p>
         </div>
         <div className="flex gap-2">
-          <button onClick={() => exportarExcel(ciudadFiltro !== 'todas' ? ciudadFiltro : null)} className="btn-secondary">
+          <button onClick={() => exportarExcel()} className="btn-secondary">
             ⬇️ Excel
           </button>
           <Link href="/clientes/nuevo" className="btn-primary">
