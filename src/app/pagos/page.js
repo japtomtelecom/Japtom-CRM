@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
@@ -11,7 +11,7 @@ function mesActualISO() {
   return new Date().toISOString().slice(0, 7); // yyyy-mm
 }
 
-export default function PagosPage() {
+function PagosPageInner() {
   const { isAdmin } = usePerfil();
   const searchParams = useSearchParams();
   const [pagos, setPagos] = useState([]);
@@ -392,5 +392,11 @@ export default function PagosPage() {
         </div>
       </div>
     </AppShell>
+  );
+} export default function PagosPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Cargando...</div>}>
+      <PagosPageInner />
+    </Suspense>
   );
 }
