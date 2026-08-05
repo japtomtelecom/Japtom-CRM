@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, Suspense } from 'react';
+import { useEffect, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
@@ -11,10 +11,11 @@ function mesActualISO() {
   return new Date().toISOString().slice(0, 7); // yyyy-mm
 }
 
-function PagosPageInner() {
+export default function PagosPage() {
   const { isAdmin } = usePerfil();
   const searchParams = useSearchParams();
   const [pagos, setPagos] = useState([]);
+  const [config, setConfig] = useState({});
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
   const [seleccionado, setSeleccionado] = useState(null);
@@ -27,12 +28,13 @@ function PagosPageInner() {
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
-  const [config, setConfig] = useState({});
 
   async function cargarPagos() {
     const { data } = await supabase
       .from('pagos')
-      .select('id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, clientes(codigo, nombre)')
+      .select(
+        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes(codigo, nombre, telefono, activo, estado, plan, precio, dia_pago)'
+      )
       .order('fecha_pago', { ascending: false })
       .limit(50);
     setPagos(data || []);
@@ -213,8 +215,7 @@ function PagosPageInner() {
             </div>
 
             {seleccionado && seleccionado.activo && wa && (
-              <a
-                href={wa}
+              <a href={wa}
                 target="_blank"
                 rel="noreferrer"
                 onClick={() => marcarMensajeEnviado(seleccionado.id)}
@@ -286,117 +287,129 @@ function PagosPageInner() {
                 <th className="py-2">Monto</th>
                 <th className="py-2">Tipo</th>
                 <th className="py-2">Mes</th>
-                {isAdmin && <th className="py-2"></th>}
+                <th className="py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {pagos.map((p) => (
-                <tr key={p.id} className="border-b border-brand-50">
-                  {editandoId === p.id ? (
-                    <>
-                      <td className="py-2">
-                        <input
-                          type="date"
-                          className="input"
-                          value={edicion.fecha_pago}
-                          onChange={(e) => setEdicion({ ...edicion, fecha_pago: e.target.value })}
-                        />
-                      </td>
-                      <td className="py-2">
-                        {p.clientes?.nombre}{' '}
-                        <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
-                      </td>
-                      <td className="py-2">
-                        <input
-                          type="number"
-                          step="0.01"
-                          className="input"
-                          value={edicion.monto}
-                          onChange={(e) => setEdicion({ ...edicion, monto: e.target.value })}
-                        />
-                      </td>
-                      <td className="py-2">
-                        <select
-                          className="input"
-                          value={edicion.tipo_pago}
-                          onChange={(e) => setEdicion({ ...edicion, tipo_pago: e.target.value })}
-                        >
-                          <option value="Mensual">Mensual</option>
-                          <option value="Semestral">Semestral</option>
-                          <option value="Anual">Anual</option>
-                          <option value="Personalizado">Personalizado</option>
-                        </select>
-                      </td>
-                      <td className="py-2">
-                        <input
-                          type="month"
-                          className="input mb-1"
-                          value={edicion.mes_corresponde}
-                          onChange={(e) => setEdicion({ ...edicion, mes_corresponde: e.target.value })}
-                        />
-                        {edicion.tipo_pago === 'Personalizado' && (
+              {pagos.map((p) => {
+                const mensajeCliente = p.clientes ? construirMensaje(p.clientes, config, config.empresa_nombre) : '';
+                const waPago = p.clientes ? linkWhatsApp(p.clientes.telefono, mensajeCliente) : null;
+
+                return (
+                  <tr key={p.id} className="border-b border-brand-50">
+                    {editandoId === p.id ? (
+                      <>
+                        <td className="py-2">
+                          <input
+                            type="date"
+                            className="input"
+                            value={edicion.fecha_pago}
+                            onChange={(e) => setEdicion({ ...edicion, fecha_pago: e.target.value })}
+                          />
+                        </td>
+                        <td className="py-2">
+                          {p.clientes?.nombre}{' '}
+                          <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
+                        </td>
+                        <td className="py-2">
                           <input
                             type="number"
-                            min="1"
+                            step="0.01"
                             className="input"
-                            placeholder="N° meses"
-                            value={edicion.meses_cubiertos}
-                            onChange={(e) => setEdicion({ ...edicion, meses_cubiertos: e.target.value })}
+                            value={edicion.monto}
+                            onChange={(e) => setEdicion({ ...edicion, monto: e.target.value })}
                           />
+                        </td>
+                        <td className="py-2">
+                          <select
+                            className="input"
+                            value={edicion.tipo_pago}
+                            onChange={(e) => setEdicion({ ...edicion, tipo_pago: e.target.value })}
+                          >
+                            <option value="Mensual">Mensual</option>
+                            <option value="Semestral">Semestral</option>
+                            <option value="Anual">Anual</option>
+                            <option value="Personalizado">Personalizado</option>
+                          </select>
+                        </td>
+                        <td className="py-2">
+                          <input
+                            type="month"
+                            className="input mb-1"
+                            value={edicion.mes_corresponde}
+                            onChange={(e) => setEdicion({ ...edicion, mes_corresponde: e.target.value })}
+                          />
+                          {edicion.tipo_pago === 'Personalizado' && (
+                            <input
+                              type="number"
+                              min="1"
+                              className="input"
+                              placeholder="N° meses"
+                              value={edicion.meses_cubiertos}
+                              onChange={(e) => setEdicion({ ...edicion, meses_cubiertos: e.target.value })}
+                            />
+                          )}
+                        </td>
+                        {isAdmin && (
+                          <td className="py-2 text-right whitespace-nowrap align-top">
+                            <button onClick={() => guardarEdicion(p.id)} className="text-brand-600 hover:underline text-xs mr-2">
+                              Guardar
+                            </button>
+                            <button onClick={() => setEditandoId(null)} className="text-brand-400 hover:underline text-xs">
+                              Cancelar
+                            </button>
+                          </td>
                         )}
-                      </td>
-                      {isAdmin && (
-                        <td className="py-2 text-right whitespace-nowrap align-top">
-                          <button onClick={() => guardarEdicion(p.id)} className="text-brand-600 hover:underline text-xs mr-2">
-                            Guardar
-                          </button>
-                          <button onClick={() => setEditandoId(null)} className="text-brand-400 hover:underline text-xs">
-                            Cancelar
-                          </button>
+                      </>
+                    ) : (
+                      <>
+                        <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
+                        <td className="py-2">
+                          {p.clientes?.nombre}{' '}
+                          <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
                         </td>
-                      )}
-                    </>
-                  ) : (
-                    <>
-                      <td className="py-2">{parsearFechaLocal(p.fecha_pago).toLocaleDateString('es-BO')}</td>
-                      <td className="py-2">
-                        {p.clientes?.nombre}{' '}
-                        <span className="text-brand-400 font-mono text-xs">({p.clientes?.codigo})</span>
-                      </td>
-                      <td className="py-2">{formatBs(p.monto)}</td>
-                      <td className="py-2 text-brand-400 text-xs">
-                        {p.tipo_pago || 'Mensual'}
-                        {p.tipo_pago === 'Personalizado' ? ` (${p.meses_cubiertos} m.)` : ''}
-                      </td>
-                      <td className="py-2 text-brand-400 text-xs capitalize">
-                        {p.mes_corresponde
-                          ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
-                          : '—'}
-                      </td>
-                      {isAdmin && (
+                        <td className="py-2">{formatBs(p.monto)}</td>
+                        <td className="py-2 text-brand-400 text-xs">
+                          {p.tipo_pago || 'Mensual'}
+                          {p.tipo_pago === 'Personalizado' ? ` (${p.meses_cubiertos} m.)` : ''}
+                        </td>
+                        <td className="py-2 text-brand-400 text-xs capitalize">
+                          {p.mes_corresponde
+                            ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+                            : '—'}
+                        </td>
                         <td className="py-2 text-right whitespace-nowrap">
-                          <button onClick={() => empezarEdicion(p)} className="text-brand-600 hover:underline text-xs mr-3">
-                            Editar
-                          </button>
-                          <button onClick={() => borrarPago(p.id, formatBs(p.monto))} className="text-red-500 hover:underline text-xs">
-                            Borrar
-                          </button>
+                          {waPago && (
+                            <a href={waPago}
+                              target="_blank"
+                              rel="noreferrer"
+                              onClick={() => marcarMensajeEnviado(p.cliente_id)}
+                              title={`Enviar WhatsApp a ${p.clientes?.nombre}`}
+                              style={{ marginRight: 10, textDecoration: 'none' }}
+                            >
+                              📲
+                            </a>
+                          )}
+                          {isAdmin && (
+                            <>
+                              <button onClick={() => empezarEdicion(p)} className="text-brand-600 hover:underline text-xs mr-3">
+                                Editar
+                              </button>
+                              <button onClick={() => borrarPago(p.id, formatBs(p.monto))} className="text-red-500 hover:underline text-xs">
+                                Borrar
+                              </button>
+                            </>
+                          )}
                         </td>
-                      )}
-                    </>
-                  )}
-                </tr>
-              ))}
+                      </>
+                    )}
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
       </div>
     </AppShell>
-  );
-} export default function PagosPage() {
-  return (
-    <Suspense fallback={<div className="p-8">Cargando...</div>}>
-      <PagosPageInner />
-    </Suspense>
   );
 }
