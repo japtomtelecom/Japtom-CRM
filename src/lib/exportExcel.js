@@ -1,18 +1,25 @@
 import * as XLSX from 'xlsx';
 import { supabase } from './supabaseClient';
 
+function nombreMesCorto(periodo) {
+  const d = new Date(periodo.slice(0, 10) + 'T00:00:00');
+  return d.toLocaleDateString('es-BO', { month: 'long', year: 'numeric' });
+}
+
 // Genera un .xlsx con la misma estructura que el Excel original (CLIENTES, PAGOS, PLANES, RESUMEN)
-// a partir de los datos reales que hoy viven en Supabase.
+// más una hoja nueva RESUMEN MENSUAL, desglosada por ciudad.
 export async function exportarExcel() {
-  const [{ data: clientes }, { data: pagos }, { data: planes }, { data: dashboard }] = await Promise.all([
-    supabase.from('v_clientes_estado').select('*').order('nombre', { ascending: true }),
-    supabase
-      .from('pagos')
-      .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre)')
-      .order('fecha_pago', { ascending: false }),
-    supabase.from('planes').select('*').order('precio', { ascending: true }),
-    supabase.from('v_dashboard').select('*').single(),
-  ]);
+  const [{ data: clientes }, { data: pagos }, { data: planes }, { data: dashboard }, { data: registroMensual }] =
+    await Promise.all([
+      supabase.from('v_clientes_estado').select('*').order('nombre', { ascending: true }),
+      supabase
+        .from('pagos')
+        .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre, ciudad)')
+        .order('fecha_pago', { ascending: false }),
+      supabase.from('planes').select('*').order('precio', { ascending: true }),
+      supabase.from('v_dashboard').select('*').single(),
+      supabase.from('v_registro_pagos_mensual').select('*'),
+    ]);
 
   const wb = XLSX.utils.book_new();
 
@@ -39,6 +46,7 @@ export async function exportarExcel() {
     'ID Cliente': p.clientes?.codigo || '',
     'Fecha de Pago': new Date(p.fecha_pago).toLocaleDateString('es-BO'),
     Cliente: p.clientes?.nombre || '',
+    Ciudad: p.clientes?.ciudad || '',
     Monto: p.monto,
     'Tipo de Pago': p.tipo_pago || 'Mensual',
     'Mes que Corresponde': p.mes_corresponde
@@ -68,6 +76,59 @@ export async function exportarExcel() {
     ];
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumen), 'RESUMEN');
   }
+
+  // --- RESUMEN MENSUAL por ciudad ---
+  // Agrupa el registro mensual (estado por cliente/mes) por ciudad + periodo
+  const grupos = {};
+  (registroMensual || []).forEach((r) => {
+    const ciudad = r.ciudad || 'Sin ciudad';
+    const clave = `${ciudad}|${r.periodo}`;
+    if (!grupos[clave]) {
+      grupos[clave] = {
+        ciudad,
+        periodo: r.periodo,
+        total: 0,
+        pagados: 0,
+        no_vencido: 0,
+        por_vencer: 0,
+        vencido: 0,
+      };
+    }
+    grupos[clave].total += 1;
+    if (r.status === 'pagado') grupos[clave].pagados += 1;
+    if (r.status === 'no_vencido') grupos[clave].no_vencido += 1;
+    if (r.status === 'por_vencer') grupos[clave].por_vencer += 1;
+    if (r.status === 'vencido') grupos[clave].vencido += 1;
+  });
+
+  // Suma de monto cobrado por ciudad + mes (a partir de los pagos reales)
+  const montoPorClave = {};
+  (pagos || []).forEach((p) => {
+    if (!p.mes_corresponde || !p.clientes?.ciudad) return;
+    const clave = `${p.clientes.ciudad}|${p.mes_corresponde}`;
+    montoPorClave[clave] = (montoPorClave[clave] || 0) + Number(p.monto || 0);
+  });
+
+  const hojaResumenMensual = Object.values(grupos)
+    .sort((a, b) => (a.ciudad + a.periodo).localeCompare(b.ciudad + b.periodo))
+    .map((g) => {
+      const clave = `${g.ciudad}|${g.periodo}`;
+      const pendientes = g.no_vencido + g.por_vencer + g.vencido;
+      return {
+        Ciudad: g.ciudad,
+        Mes: nombreMesCorto(g.periodo),
+        'Total Clientes': g.total,
+        Pagados: g.pagados,
+        'Aún no vence': g.no_vencido,
+        'Vencido (1-5 días)': g.por_vencer,
+        'Vencido (+5 días)': g.vencido,
+        'Total Pendientes': pendientes,
+        '% Al Día': g.total > 0 ? `${Math.round((g.pagados / g.total) * 100)}%` : '0%',
+        'Monto Cobrado (Bs)': montoPorClave[clave] || 0,
+      };
+    });
+
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumenMensual), 'RESUMEN MENSUAL');
 
   const fecha = new Date().toISOString().slice(0, 10);
   XLSX.writeFile(wb, `JapTom_CRM_${fecha}.xlsx`);
