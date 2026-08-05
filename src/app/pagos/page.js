@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
@@ -11,7 +11,7 @@ function mesActualISO() {
   return new Date().toISOString().slice(0, 7); // yyyy-mm
 }
 
-export default function PagosPage() {
+function PagosPageInner() {
   const { isAdmin } = usePerfil();
   const searchParams = useSearchParams();
   const [pagos, setPagos] = useState([]);
@@ -215,12 +215,7 @@ export default function PagosPage() {
             </div>
 
             {seleccionado && seleccionado.activo && wa && (
-              <a href={wa}
-                target="_blank"
-                rel="noreferrer"
-                onClick={() => marcarMensajeEnviado(seleccionado.id)}
-                className="btn-whatsapp w-full justify-center"
-              >
+              <a href={wa} target="_blank" rel="noreferrer" onClick={() => marcarMensajeEnviado(seleccionado.id)} className="btn-whatsapp w-full justify-center">
                 📲 Enviar WhatsApp a {seleccionado.nombre.split(' ')[0]}
               </a>
             )}
@@ -380,13 +375,7 @@ export default function PagosPage() {
                         </td>
                         <td className="py-2 text-right whitespace-nowrap">
                           {waPago && (
-                            <a href={waPago}
-                              target="_blank"
-                              rel="noreferrer"
-                              onClick={() => marcarMensajeEnviado(p.cliente_id)}
-                              title={`Enviar WhatsApp a ${p.clientes?.nombre}`}
-                              style={{ marginRight: 10, textDecoration: 'none' }}
-                            >
+                            <a href={waPago} target="_blank" rel="noreferrer" onClick={() => marcarMensajeEnviado(p.cliente_id)} title={`Enviar WhatsApp a ${p.clientes?.nombre}`} style={{ marginRight: 10, textDecoration: 'none' }}>
                               📲
                             </a>
                           )}
@@ -411,5 +400,13 @@ export default function PagosPage() {
         </div>
       </div>
     </AppShell>
+  );
+}
+
+export default function PagosPage() {
+  return (
+    <Suspense fallback={<div className="p-8">Cargando...</div>}>
+      <PagosPageInner />
+    </Suspense>
   );
 }
