@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
+import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { construirMensaje, linkWhatsApp } from '@/lib/utils';
 
 const STATUS_STYLE = {
@@ -20,7 +21,8 @@ function formatPeriodoCorto(periodo) {
 
 export default function RegistroMensualPage() {
   const router = useRouter();
-  const [rows, setRows] = useState([]);
+  const { sucursalActiva } = useSucursalActiva();
+  const [rowsTodas, setRowsTodas] = useState([]);
   const [clientesMap, setClientesMap] = useState({});
   const [config, setConfig] = useState({});
   const [loading, setLoading] = useState(true);
@@ -41,7 +43,7 @@ export default function RegistroMensualPage() {
       if (errRegistro) console.error('Error al cargar v_registro_pagos_mensual:', errRegistro);
       if (errClientes) console.error('Error al cargar v_clientes_estado:', errClientes);
 
-      setRows(registro || []);
+      setRowsTodas(registro || []);
 
       const map = {};
       (clientesData || []).forEach((c) => (map[c.id] = c));
@@ -55,6 +57,11 @@ export default function RegistroMensualPage() {
     }
     cargar();
   }, []);
+
+  const rows =
+    !sucursalActiva || sucursalActiva === 'Todas'
+      ? rowsTodas
+      : rowsTodas.filter((r) => r.ciudad === sucursalActiva);
 
   function irARegistrarPago(cliente_id, periodo) {
     const mes = periodo.slice(0, 7);
@@ -118,14 +125,7 @@ export default function RegistroMensualPage() {
                     <tr key={nombre} className="border-b border-brand-50">
                       <td className="py-2 pr-2 sticky left-0 bg-white">
                         {wa && (
-                          
-                            <a href={wa}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => marcarMensajeEnviado(cliente.id)}
-                            title={`Enviar WhatsApp a ${nombre}`}
-                            style={{ fontSize: 16, textDecoration: 'none' }}
-                          >
+                          <a href={wa} target="_blank" rel="noreferrer" onClick={() => marcarMensajeEnviado(cliente.id)} title={`Enviar WhatsApp a ${nombre}`} style={{ fontSize: 16, textDecoration: 'none' }}>
                             📲
                           </a>
                         )}
