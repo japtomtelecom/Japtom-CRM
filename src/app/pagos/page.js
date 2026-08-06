@@ -37,6 +37,7 @@ function PagosPageInner() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
+ const [busquedaPagos, setBusquedaPagos] = useState('');
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', meses_cubiertos: 1 });
 
   async function cargarPagos() {
@@ -291,9 +292,17 @@ function PagosPageInner() {
             {msg && <p className="text-sm text-brand-600">{msg}</p>}
           </form>
         </div>
-
-        <div className="card p-5 md:col-span-2">
-          <h2 className="font-semibold text-brand-700 mb-3">Últimos pagos</h2>
+           <div className="card p-5 md:col-span-2">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <h2 className="font-semibold text-brand-700">Últimos pagos</h2>
+            <input
+              className="input md:max-w-xs"
+              placeholder="Buscar por nombre o ID…"
+              value={busquedaPagos}
+              onChange={(e) => setBusquedaPagos(e.target.value)}
+            />
+          </div>
+       
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-brand-500 border-b border-brand-100">
@@ -306,7 +315,16 @@ function PagosPageInner() {
               </tr>
             </thead>
             <tbody>
-              {pagos.map((p) => {
+              {pagos
+                .filter((p) => {
+                  const q = busquedaPagos.trim().toLowerCase();
+                  if (!q) return true;
+                  return (
+                    p.clientes?.nombre?.toLowerCase().includes(q) ||
+                    p.clientes?.codigo?.toLowerCase().includes(q)
+                  );
+                })
+                .map((p) => {
                 const mensajeCliente = p.clientes
                   ? construirMensaje({ ...p.clientes, activo: true, estado: 'Al día' }, config, config.empresa_nombre)
                   : '';
