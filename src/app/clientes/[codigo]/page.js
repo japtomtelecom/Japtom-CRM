@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
@@ -10,7 +10,6 @@ import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
 
 export default function FichaClientePage() {
   const params = useParams();
-  const router = useRouter();
   const { isAdmin } = usePerfil();
   const codigo = params.codigo;
 
@@ -22,6 +21,7 @@ export default function FichaClientePage() {
   const [form, setForm] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
+  const [verPassword, setVerPassword] = useState(false);
 
   async function cargar() {
     setLoading(true);
@@ -73,6 +73,9 @@ export default function FichaClientePage() {
         direccion: form.direccion,
         ci: form.ci,
         costo_instalacion: form.costo_instalacion ? Number(form.costo_instalacion) : 0,
+        pppoe_usuario: form.pppoe_usuario,
+        pppoe_password: form.pppoe_password,
+        ip_asignada: form.ip_asignada,
       })
       .eq('id', cliente.id);
     setGuardando(false);
@@ -266,28 +269,81 @@ export default function FichaClientePage() {
           )}
         </div>
 
-        <div className="card p-5 md:col-span-1">
-          <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
-          {pagos.length === 0 ? (
-            <p className="text-sm text-brand-400">Sin pagos registrados.</p>
-          ) : (
-            <ul className="space-y-2 text-sm">
-              {pagos.map((p) => (
-                <li key={p.id} className="border-b border-brand-50 pb-2">
-                  <div className="flex justify-between">
-                    <span>{new Date(p.fecha_pago).toLocaleDateString('es-BO')}</span>
-                    <span className="font-medium">{formatBs(p.monto)}</span>
-                  </div>
-                  <div className="text-xs text-brand-400">
-                    {p.tipo_pago || 'Mensual'}
-                    {p.mes_corresponde
-                      ? ' · ' + new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
-                      : ''}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
+        <div className="md:col-span-1 space-y-6">
+          <div className="card p-5">
+            <h2 className="font-semibold text-brand-700 mb-3">Configuración MikroTik</h2>
+
+            {!editando ? (
+              <div className="space-y-3 text-sm">
+                <div>
+                  <span className="text-brand-400">Usuario PPPoE</span>
+                  <p className="font-mono font-medium">{cliente.pppoe_usuario || '—'}</p>
+                </div>
+                <div>
+                  <span className="text-brand-400">Contraseña PPPoE</span>
+                  <p className="font-mono font-medium flex items-center gap-2">
+                    {cliente.pppoe_password
+                      ? verPassword
+                        ? cliente.pppoe_password
+                        : '•'.repeat(Math.min(cliente.pppoe_password.length, 10))
+                      : '—'}
+                    {cliente.pppoe_password && (
+                      <button
+                        type="button"
+                        onClick={() => setVerPassword(!verPassword)}
+                        className="text-brand-500 text-xs hover:underline font-sans"
+                      >
+                        {verPassword ? 'Ocultar' : 'Ver'}
+                      </button>
+                    )}
+                  </p>
+                </div>
+                <div>
+                  <span className="text-brand-400">IP asignada</span>
+                  <p className="font-mono font-medium">{cliente.ip_asignada || '—'}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Usuario PPPoE</label>
+                  <input className="input" value={form.pppoe_usuario || ''} onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">Contraseña PPPoE</label>
+                  <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">IP asignada</label>
+                  <input className="input" value={form.ip_asignada || ''} onChange={(e) => setForm({ ...form, ip_asignada: e.target.value })} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="card p-5">
+            <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
+            {pagos.length === 0 ? (
+              <p className="text-sm text-brand-400">Sin pagos registrados.</p>
+            ) : (
+              <ul className="space-y-2 text-sm">
+                {pagos.map((p) => (
+                  <li key={p.id} className="border-b border-brand-50 pb-2">
+                    <div className="flex justify-between">
+                      <span>{new Date(p.fecha_pago).toLocaleDateString('es-BO')}</span>
+                      <span className="font-medium">{formatBs(p.monto)}</span>
+                    </div>
+                    <div className="text-xs text-brand-400">
+                      {p.tipo_pago || 'Mensual'}
+                      {p.mes_corresponde
+                        ? ' · ' + new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+                        : ''}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       </div>
     </AppShell>
