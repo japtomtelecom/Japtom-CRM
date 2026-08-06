@@ -6,7 +6,7 @@ import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
-import { formatBs, parsearFechaLocal, nombreMes, linkWhatsApp } from '@/lib/utils';
+import { formatBs, parsearFechaLocal, construirMensaje, linkWhatsApp } from '@/lib/utils';
 
 function mesActualISO() {
   return new Date().toISOString().slice(0, 7); // yyyy-mm
@@ -18,12 +18,6 @@ function mesesCubiertosPorTipo(tipo, mesesPersonalizado) {
   if (tipo === 'Personalizado') return Number(mesesPersonalizado);
   if (tipo === 'Costo de instalación') return 0;
   return 1; // Mensual
-}
-
-function mensajeAgradecimiento(p, empresaNombre) {
-  const nombre = p.clientes?.nombre || '';
-  const mesTexto = p.mes_corresponde ? nombreMes(p.mes_corresponde) : '';
-  return `Hola ${nombre}, confirmamos la recepción de tu pago de ${formatBs(p.monto)}${mesTexto ? ' correspondiente a ' + mesTexto : ''}. ¡Gracias por confiar en ${empresaNombre || 'Japtom Telecom'}!`;
 }
 
 function PagosPageInner() {
@@ -313,7 +307,9 @@ function PagosPageInner() {
             </thead>
             <tbody>
               {pagos.map((p) => {
-                const mensajeCliente = mensajeAgradecimiento(p, config.empresa_nombre);
+                const mensajeCliente = p.clientes
+                  ? construirMensaje({ ...p.clientes, activo: true, estado: 'Al día' }, config, config.empresa_nombre)
+                  : '';
                 const waPago = p.clientes ? linkWhatsApp(p.clientes.telefono, mensajeCliente) : null;
 
                 return (
@@ -406,7 +402,7 @@ function PagosPageInner() {
                         </td>
                         <td className="py-2 text-right whitespace-nowrap">
                           {waPago && (
-                            <a href={waPago} target="_blank" rel="noreferrer" title={`Enviar agradecimiento a ${p.clientes?.nombre}`} style={{ marginRight: 10, textDecoration: 'none' }}>
+                            <a href={waPago} target="_blank" rel="noreferrer" title={`Enviar WhatsApp a ${p.clientes?.nombre}`} style={{ marginRight: 10, textDecoration: 'none' }}>
                               📲
                             </a>
                           )}

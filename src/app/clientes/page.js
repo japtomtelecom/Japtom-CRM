@@ -9,12 +9,87 @@ import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
 import { exportarExcel } from '@/lib/exportExcel';
 
+const STATUS_STYLE = {
+  pagado: { bg: '#E1F5EE', text: '#085041', label: 'Pagado' },
+  no_vencido: { bg: '#F1EFE8', text: '#5F5E5A', label: 'Aún no vence' },
+  por_vencer: { bg: '#FAEEDA', text: '#854F0B', label: 'Vencido (1-5 días)' },
+  vencido: { bg: '#FCEBEB', text: '#791F1F', label: 'Vencido (+5 días)' },
+};
+
+function formatPeriodoCorto(periodo) {
+  const d = new Date(periodo.slice(0, 10) + 'T00:00:00');
+  return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
+}
+
 function Badge({ cliente }) {
   if (!cliente.activo) return <span className="badge-inactivo">Inactivo</span>;
   return cliente.estado === 'Al día' ? (
     <span className="badge-al-dia">Al día</span>
   ) : (
     <span className="badge-vencido">Vencido</span>
+  );
+}
+
+function ModalMeses({ cliente, onClose }) {
+  const [meses, setMeses] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function cargar() {
+      setLoading(true);
+      const { data } = await supabase
+        .from('v_registro_pagos_mensual')
+        .select('periodo, status')
+        .eq('cliente_id', cliente.id)
+        .order('periodo');
+      setMeses(data || []);
+      setLoading(false);
+    }
+    cargar();
+  }, [cliente.id]);
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={onClose}
+    >
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 360, maxHeight: '80vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>{cliente.nombre}</h3>
+        <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{cliente.codigo} · Registro mensual</p>
+
+        {loading ? (
+          <p className="text-sm text-brand-400">Cargando…</p>
+        ) : (
+          <ul style={{ marginTop: 12, display: 'flex', flexDirection: 'column', gap: 6 }}>
+            {meses.map((m) => {
+              const style = STATUS_STYLE[m.status];
+              return (
+                <li
+                  key={m.periodo}
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '6px 10px',
+                    borderRadius: 6,
+                    background: style?.bg,
+                    color: style?.text,
+                    fontSize: 13,
+                  }}
+                >
+                  <span>{formatPeriodoCorto(m.periodo)}</span>
+                  <span style={{ fontWeight: 600 }}>{style?.label}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <button onClick={onClose} className="btn-secondary w-full mt-4">
+          Cerrar
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -27,6 +102,7 @@ export default function ClientesPage() {
   const [diaPagoFiltro, setDiaPagoFiltro] = useState('todos');
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState({});
+  const [clienteMeses, setClienteMeses] = useState(null);
 
   useEffect(() => {
     if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
@@ -190,8 +266,16 @@ export default function ClientesPage() {
                     {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
+                    <button
+                      onClick={() => setClienteMeses(c)}
+                      title="Ver registro mensual"
+                      className="mr-3"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      📅
+                    </button>
                     {wa && (
-                      <a
+                      
                         href={wa}
                         target="_blank"
                         rel="noreferrer"
@@ -212,6 +296,8 @@ export default function ClientesPage() {
           </tbody>
         </table>
       </div>
+
+      {clienteMeses && <ModalMeses cliente={clienteMeses} onClose={() => setClienteMeses(null)} />}
     </AppShell>
   );
 }
