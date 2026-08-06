@@ -8,6 +8,8 @@ import { usePerfil } from '@/lib/usePerfil';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs, parsearFechaLocal, construirMensaje, linkWhatsApp } from '@/lib/utils';
 
+const PAGE_SIZE = 50;
+
 function mesActualISO() {
   return new Date().toISOString().slice(0, 7); // yyyy-mm
 }
@@ -25,9 +27,12 @@ function PagosPageInner() {
   const { sucursalActiva } = useSucursalActiva();
   const searchParams = useSearchParams();
   const [pagos, setPagos] = useState([]);
+  const [totalPagos, setTotalPagos] = useState(0);
+  const [pagina, setPagina] = useState(1);
   const [config, setConfig] = useState({});
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
+  const [busquedaPagos, setBusquedaPagos] = useState('');
   const [seleccionado, setSeleccionado] = useState(null);
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
   const [monto, setMonto] = useState('');
@@ -37,23 +42,28 @@ function PagosPageInner() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
- const [busquedaPagos, setBusquedaPagos] = useState('');
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', meses_cubiertos: 1 });
 
   async function cargarPagos() {
     let query = supabase
       .from('pagos')
       .select(
-        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes!inner(codigo, nombre, telefono, activo, plan, precio, dia_pago, ciudad)'
+        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes!inner(codigo, nombre, telefono, activo, plan, precio, dia_pago, ciudad)',
+        { count: 'exact' }
       )
-      .order('fecha_pago', { ascending: false })
-      .limit(50);
+      .order('created_at', { ascending: false })
+      .range((pagina - 1) * PAGE_SIZE, pagina * PAGE_SIZE - 1);
 
     if (sucursalActiva && sucursalActiva !== 'Todas') {
       query = query.eq('clientes.ciudad', sucursalActiva);
     }
 
-    const { data, error } = await query;
+    const q = busquedaPagos.trim();
+    if (q) {
+      query = query.or(`nombre.ilike.%${q}%,codigo.ilike.%${q}%`, { foreignTable: 'clientes' });
+    }
+
+    const { data, error, count } = await query;
 
     if (error) {
       console.error('Error al cargar pagos:', error);
@@ -62,10 +72,23 @@ function PagosPageInner() {
     }
 
     setPagos(data || []);
+    setTotalPagos(count || 0);
   }
 
+  // Cuando cambia la búsqueda, vuelve a la página 1
   useEffect(() => {
-    cargarPagos();
+    setPagina(1);
+  }, [busquedaPagos]);
+
+  // Recarga (con un pequeño delay al escribir, para no disparar una consulta por cada letra)
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      cargarPagos();
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [sucursalActiva, pagina, busquedaPagos]);
+
+  useEffect(() => {
     supabase
       .from('config')
       .select('*')
@@ -74,7 +97,7 @@ function PagosPageInner() {
         (data || []).forEach((r) => (cfg[r.clave] = r.valor));
         setConfig(cfg);
       });
-  }, [sucursalActiva]);
+  }, []);
 
   // Si llegamos desde /pagos/mensual con ?cliente_id=...&mes=..., precargar el formulario
   useEffect(() => {
@@ -197,8 +220,14 @@ function PagosPageInner() {
     setTipoPago('Mensual');
     setMesesPersonalizado(2);
     setMesCorresponde(mesActualISO());
-    cargarPagos();
+    if (pagina !== 1) {
+      setPagina(1);
+    } else {
+      cargarPagos();
+    }
   }
+
+  const totalPaginas = Math.max(1, Math.ceil(totalPagos / PAGE_SIZE));
 
   return (
     <AppShell>
@@ -292,7 +321,8 @@ function PagosPageInner() {
             {msg && <p className="text-sm text-brand-600">{msg}</p>}
           </form>
         </div>
-           <div className="card p-5 md:col-span-2">
+
+        <div className="card p-5 md:col-span-2">
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <h2 className="font-semibold text-brand-700">Últimos pagos</h2>
             <input
@@ -302,7 +332,7 @@ function PagosPageInner() {
               onChange={(e) => setBusquedaPagos(e.target.value)}
             />
           </div>
-       
+
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-brand-500 border-b border-brand-100">
@@ -315,16 +345,7 @@ function PagosPageInner() {
               </tr>
             </thead>
             <tbody>
-              {pagos
-                .filter((p) => {
-                  const q = busquedaPagos.trim().toLowerCase();
-                  if (!q) return true;
-                  return (
-                    p.clientes?.nombre?.toLowerCase().includes(q) ||
-                    p.clientes?.codigo?.toLowerCase().includes(q)
-                  );
-                })
-                .map((p) => {
+              {pagos.map((p) => {
                 const mensajeCliente = p.clientes
                   ? construirMensaje({ ...p.clientes, activo: true, estado: 'Al día' }, config, config.empresa_nombre)
                   : '';
@@ -442,6 +463,30 @@ function PagosPageInner() {
               })}
             </tbody>
           </table>
+
+          <div className="flex items-center justify-between mt-4 text-sm">
+            <span className="text-brand-400">
+              Página {pagina} de {totalPaginas} · {totalPagos} pagos en total
+            </span>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setPagina((p) => Math.max(1, p - 1))}
+                disabled={pagina <= 1}
+                className="btn-secondary"
+                style={{ opacity: pagina <= 1 ? 0.5 : 1 }}
+              >
+                ← Anterior
+              </button>
+              <button
+                onClick={() => setPagina((p) => Math.min(totalPaginas, p + 1))}
+                disabled={pagina >= totalPaginas}
+                className="btn-secondary"
+                style={{ opacity: pagina >= totalPaginas ? 0.5 : 1 }}
+              >
+                Siguiente →
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </AppShell>
