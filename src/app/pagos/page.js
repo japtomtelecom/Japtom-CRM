@@ -6,7 +6,7 @@ import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
-import { formatBs, parsearFechaLocal, construirMensaje, linkWhatsApp } from '@/lib/utils';
+import { formatBs, parsearFechaLocal, nombreMes, linkWhatsApp } from '@/lib/utils';
 
 function mesActualISO() {
   return new Date().toISOString().slice(0, 7); // yyyy-mm
@@ -18,6 +18,12 @@ function mesesCubiertosPorTipo(tipo, mesesPersonalizado) {
   if (tipo === 'Personalizado') return Number(mesesPersonalizado);
   if (tipo === 'Costo de instalación') return 0;
   return 1; // Mensual
+}
+
+function mensajeAgradecimiento(p, empresaNombre) {
+  const nombre = p.clientes?.nombre || '';
+  const mesTexto = p.mes_corresponde ? nombreMes(p.mes_corresponde) : '';
+  return `Hola ${nombre}, confirmamos la recepción de tu pago de ${formatBs(p.monto)}${mesTexto ? ' correspondiente a ' + mesTexto : ''}. ¡Gracias por confiar en ${empresaNombre || 'Japtom Telecom'}!`;
 }
 
 function PagosPageInner() {
@@ -37,7 +43,7 @@ function PagosPageInner() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
-  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
+  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', meses_cubiertos: 1 });
 
   async function cargarPagos() {
     let query = supabase
@@ -60,21 +66,7 @@ function PagosPageInner() {
       return;
     }
 
-    const idsClientes = [...new Set((data || []).map((p) => p.cliente_id))];
-    const { data: estados } = await supabase
-      .from('v_clientes_estado')
-      .select('id, estado')
-      .in('id', idsClientes.length > 0 ? idsClientes : ['00000000-0000-0000-0000-000000000000']);
-
-    const estadoPorId = {};
-    (estados || []).forEach((e) => (estadoPorId[e.id] = e.estado));
-
-    const pagosConEstado = (data || []).map((p) => ({
-      ...p,
-      clientes: p.clientes ? { ...p.clientes, estado: estadoPorId[p.cliente_id] } : null,
-    }));
-
-    setPagos(pagosConEstado);
+    setPagos(data || []);
   }
 
   useEffect(() => {
@@ -115,7 +107,6 @@ function PagosPageInner() {
       fecha_pago: p.fecha_pago.slice(0, 10),
       monto: p.monto,
       tipo_pago: p.tipo_pago || 'Mensual',
-      mes_corresponde: (p.mes_corresponde || p.fecha_pago).slice(0, 7),
       meses_cubiertos: p.meses_cubiertos || 1,
     });
   }
@@ -128,7 +119,6 @@ function PagosPageInner() {
         fecha_pago: edicion.fecha_pago,
         monto: Number(edicion.monto),
         tipo_pago: edicion.tipo_pago,
-        mes_corresponde: `${edicion.mes_corresponde}-01`,
         meses_cubiertos: mesesCubiertos,
       })
       .eq('id', id);
@@ -137,6 +127,19 @@ function PagosPageInner() {
       return;
     }
     setEditandoId(null);
+    cargarPagos();
+  }
+
+  // Actualiza solo el mes de un pago, directo desde la tabla (sin entrar a "Editar")
+  async function actualizarMes(id, nuevoMesISO) {
+    const { error } = await supabase
+      .from('pagos')
+      .update({ mes_corresponde: `${nuevoMesISO}-01` })
+      .eq('id', id);
+    if (error) {
+      setMsg('Error al cambiar el mes: ' + error.message);
+      return;
+    }
     cargarPagos();
   }
 
@@ -310,7 +313,7 @@ function PagosPageInner() {
             </thead>
             <tbody>
               {pagos.map((p) => {
-                const mensajeCliente = p.clientes ? construirMensaje(p.clientes, config, config.empresa_nombre) : '';
+                const mensajeCliente = mensajeAgradecimiento(p, config.empresa_nombre);
                 const waPago = p.clientes ? linkWhatsApp(p.clientes.telefono, mensajeCliente) : null;
 
                 return (
@@ -354,15 +357,15 @@ function PagosPageInner() {
                         <td className="py-2">
                           <input
                             type="month"
-                            className="input mb-1"
-                            value={edicion.mes_corresponde}
-                            onChange={(e) => setEdicion({ ...edicion, mes_corresponde: e.target.value })}
+                            className="input"
+                            value={(p.mes_corresponde || p.fecha_pago).slice(0, 7)}
+                            onChange={(e) => actualizarMes(p.id, e.target.value)}
                           />
                           {edicion.tipo_pago === 'Personalizado' && (
                             <input
                               type="number"
                               min="1"
-                              className="input"
+                              className="input mt-1"
                               placeholder="N° meses"
                               value={edicion.meses_cubiertos}
                               onChange={(e) => setEdicion({ ...edicion, meses_cubiertos: e.target.value })}
@@ -392,14 +395,18 @@ function PagosPageInner() {
                           {p.tipo_pago || 'Mensual'}
                           {p.tipo_pago === 'Personalizado' ? ` (${p.meses_cubiertos} m.)` : ''}
                         </td>
-                        <td className="py-2 text-brand-400 text-xs capitalize">
-                          {p.mes_corresponde
-                            ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
-                            : '—'}
+                        <td className="py-2">
+                          <input
+                            type="month"
+                            className="input"
+                            style={{ minWidth: 130 }}
+                            value={(p.mes_corresponde || p.fecha_pago).slice(0, 7)}
+                            onChange={(e) => actualizarMes(p.id, e.target.value)}
+                          />
                         </td>
                         <td className="py-2 text-right whitespace-nowrap">
                           {waPago && (
-                            <a href={waPago} target="_blank" rel="noreferrer" title={`Enviar WhatsApp a ${p.clientes?.nombre}`} style={{ marginRight: 10, textDecoration: 'none' }}>
+                            <a href={waPago} target="_blank" rel="noreferrer" title={`Enviar agradecimiento a ${p.clientes?.nombre}`} style={{ marginRight: 10, textDecoration: 'none' }}>
                               📲
                             </a>
                           )}
