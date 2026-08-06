@@ -61,7 +61,6 @@ function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTod
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaPlanes), 'PLANES');
 
-  // RESUMEN simple de esta ciudad
   const activos = clientes.filter((c) => c.activo).length;
   const alDia = clientes.filter((c) => c.activo && c.estado === 'Al día').length;
   const vencidos = clientes.filter((c) => c.activo && c.estado === 'Vencido').length;
@@ -74,7 +73,7 @@ function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTod
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumen), 'RESUMEN');
 
-  // RESUMEN MENSUAL: una fila por cliente, una columna por mes
+  // RESUMEN MENSUAL: una fila por cliente (ordenado por código), una columna por mes
   const clientePorId = {};
   clientes.forEach((c) => (clientePorId[c.id] = c));
 
@@ -94,7 +93,7 @@ function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTod
   });
 
   const hojaResumenMensual = Object.values(porCliente)
-    .sort((a, b) => a.Cliente.localeCompare(b.Cliente))
+    .sort((a, b) => a.Código.localeCompare(b.Código))
     .map((c) => {
       const fila = { Código: c.Código, Cliente: c.Cliente };
       periodos.forEach((p) => {
@@ -111,7 +110,7 @@ function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTod
 // Genera y descarga 2 archivos .xlsx separados: uno para El Alto, otro para Tarija.
 export async function exportarExcel() {
   const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }] = await Promise.all([
-    supabase.from('v_clientes_estado').select('*').order('nombre', { ascending: true }),
+    supabase.from('v_clientes_estado').select('*').order('codigo', { ascending: true }),
     supabase
       .from('pagos')
       .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre, ciudad)')
