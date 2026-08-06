@@ -26,6 +26,7 @@ export default function RegistroMensualPage() {
   const [clientesMap, setClientesMap] = useState({});
   const [config, setConfig] = useState({});
   const [loading, setLoading] = useState(true);
+  const [busqueda, setBusqueda] = useState('');
 
   useEffect(() => {
     async function cargar() {
@@ -58,10 +59,19 @@ export default function RegistroMensualPage() {
     cargar();
   }, []);
 
-  const rows =
+  const rowsPorSucursal =
     !sucursalActiva || sucursalActiva === 'Todas'
       ? rowsTodas
       : rowsTodas.filter((r) => r.ciudad === sucursalActiva);
+
+  // Aplica el buscador (por nombre o por código)
+  const q = busqueda.trim().toLowerCase();
+  const rows = q
+    ? rowsPorSucursal.filter((r) => {
+        const codigo = clientesMap[r.cliente_id]?.codigo || '';
+        return r.nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q);
+      })
+    : rowsPorSucursal;
 
   function irARegistrarPago(cliente_id, periodo) {
     const mes = periodo.slice(0, 7);
@@ -72,7 +82,15 @@ export default function RegistroMensualPage() {
     await supabase.from('clientes').update({ ultimo_mensaje_enviado: new Date().toISOString() }).eq('id', clienteId);
   }
 
-  const nombres = [...new Set(rows.map((r) => r.nombre))];
+  // Lista de clientes únicos, ordenada por código
+  const clientesUnicos = [...new Map(rows.map((r) => [r.cliente_id, r.nombre])).keys()]
+    .map((cliente_id) => ({
+      cliente_id,
+      nombre: rows.find((r) => r.cliente_id === cliente_id)?.nombre,
+      codigo: clientesMap[cliente_id]?.codigo || '',
+    }))
+    .sort((a, b) => a.codigo.localeCompare(b.codigo));
+
   const periodos = [...new Set(rows.map((r) => r.periodo))].sort();
 
   return (
@@ -80,22 +98,30 @@ export default function RegistroMensualPage() {
       <h1 className="font-display text-2xl font-bold text-brand-800 mb-6">Registro mensual</h1>
 
       <div className="card p-5">
-        <div className="flex gap-4 text-xs mb-4 flex-wrap">
-          {Object.entries(STATUS_STYLE).map(([key, s]) => (
-            <span key={key} className="flex items-center gap-1.5">
-              <span
-                style={{
-                  width: 10,
-                  height: 10,
-                  borderRadius: 2,
-                  background: s.bg,
-                  border: `1px solid ${s.text}`,
-                  display: 'inline-block',
-                }}
-              />
-              {s.label}
-            </span>
-          ))}
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+          <div className="flex gap-4 text-xs flex-wrap">
+            {Object.entries(STATUS_STYLE).map(([key, s]) => (
+              <span key={key} className="flex items-center gap-1.5">
+                <span
+                  style={{
+                    width: 10,
+                    height: 10,
+                    borderRadius: 2,
+                    background: s.bg,
+                    border: `1px solid ${s.text}`,
+                    display: 'inline-block',
+                  }}
+                />
+                {s.label}
+              </span>
+            ))}
+          </div>
+          <input
+            className="input md:max-w-xs"
+            placeholder="Buscar por nombre o ID…"
+            value={busqueda}
+            onChange={(e) => setBusqueda(e.target.value)}
+          />
         </div>
 
         {loading ? (
@@ -106,6 +132,7 @@ export default function RegistroMensualPage() {
               <thead>
                 <tr className="text-left text-brand-500 border-b border-brand-100">
                   <th className="py-2 pr-2 sticky left-0 bg-white"></th>
+                  <th className="py-2 pr-3 sticky left-0 bg-white">ID</th>
                   <th className="py-2 pr-4 sticky left-0 bg-white">Cliente</th>
                   {periodos.map((p) => (
                     <th key={p} className="py-2 px-2 text-center whitespace-nowrap">
@@ -115,14 +142,13 @@ export default function RegistroMensualPage() {
                 </tr>
               </thead>
               <tbody>
-                {nombres.map((nombre) => {
-                  const primeraFila = rows.find((r) => r.nombre === nombre);
-                  const cliente = clientesMap[primeraFila?.cliente_id];
+                {clientesUnicos.map(({ cliente_id, nombre, codigo }) => {
+                  const cliente = clientesMap[cliente_id];
                   const mensaje = cliente ? construirMensaje(cliente, config, config.empresa_nombre) : '';
                   const wa = cliente ? linkWhatsApp(cliente.telefono, mensaje) : null;
 
                   return (
-                    <tr key={nombre} className="border-b border-brand-50">
+                    <tr key={cliente_id} className="border-b border-brand-50">
                       <td className="py-2 pr-2 sticky left-0 bg-white">
                         {wa && (
                           <a href={wa} target="_blank" rel="noreferrer" onClick={() => marcarMensajeEnviado(cliente.id)} title={`Enviar WhatsApp a ${nombre}`} style={{ fontSize: 16, textDecoration: 'none' }}>
@@ -130,9 +156,10 @@ export default function RegistroMensualPage() {
                           </a>
                         )}
                       </td>
+                      <td className="py-2 pr-3 whitespace-nowrap sticky left-0 bg-white font-mono text-xs text-brand-500">{codigo}</td>
                       <td className="py-2 pr-4 whitespace-nowrap sticky left-0 bg-white">{nombre}</td>
                       {periodos.map((p) => {
-                        const cell = rows.find((r) => r.nombre === nombre && r.periodo === p);
+                        const cell = rows.find((r) => r.cliente_id === cliente_id && r.periodo === p);
                         if (!cell) return <td key={p} />;
                         const style = STATUS_STYLE[cell.status];
                         return (
