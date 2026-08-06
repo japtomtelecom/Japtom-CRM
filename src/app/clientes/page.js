@@ -38,7 +38,7 @@ export default function ClientesPage() {
       const { data } = await supabase
         .from('v_clientes_estado')
         .select('*')
-        .order('nombre', { ascending: true });
+        .order('codigo', { ascending: true });
       setClientes(data || []);
       const { data: cfgRows } = await supabase.from('config').select('*');
       const cfg = {};
