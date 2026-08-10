@@ -27,9 +27,9 @@ function parrafo(doc, texto, x, y, ancho, lineHeight = 5) {
   return y + lineas.length * lineHeight;
 }
 
-// materiales: { [nombreMaterial]: cantidad }
+// fecha: string 'YYYY-MM-DD' (editable por el usuario antes de generar)
 // observaciones: texto libre (ej: "Puerto óptico en NAP: 4")
-export async function generarBoletaInstalacion(cliente, materiales, observaciones, empresaNombre = 'JapTom Telecom') {
+export async function generarBoletaInstalacion(cliente, fecha, observaciones, empresaNombre = 'JapTom Telecom') {
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const margenX = 20;
   const anchoUtil = 210 - margenX * 2;
@@ -47,10 +47,16 @@ export async function generarBoletaInstalacion(cliente, materiales, observacione
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(empresaNombre, 105, y, { align: 'center' });
-  y += 14;
+  y += 8;
+
+  // --- Fecha, arriba ---
+  const fechaDate = fecha ? new Date(fecha + 'T00:00:00') : new Date();
+  const fechaTexto = fechaDate.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
+  doc.setFont('helvetica', 'bold');
+  doc.text(`Fecha: ${fechaTexto}`, 210 - margenX, y, { align: 'right' });
+  y += 10;
 
   // --- Datos del cliente ---
-  doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Datos del cliente', margenX, y);
   y += 6;
@@ -78,7 +84,7 @@ export async function generarBoletaInstalacion(cliente, materiales, observacione
 
   y += 6;
 
-  // --- Descargo de materiales ---
+  // --- Descargo de materiales (cantidad en blanco, para llenar a mano) ---
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(11);
   doc.text('Descargo de materiales', margenX, y);
@@ -88,17 +94,18 @@ export async function generarBoletaInstalacion(cliente, materiales, observacione
   doc.setFillColor(230, 230, 230);
   doc.rect(margenX, y - 5, anchoUtil, 7, 'F');
   doc.text('Material', margenX + 2, y);
-  doc.text('Cantidad', margenX + anchoUtil - 25, y);
-  y += 8;
+  doc.text('Cantidad', margenX + anchoUtil - 30, y);
+  y += 9;
 
   doc.setFont('helvetica', 'normal');
   MATERIALES.forEach((mat) => {
-    const cantidad = materiales[mat] || 0;
     doc.text(mat, margenX + 2, y);
-    doc.text(String(cantidad), margenX + anchoUtil - 25, y);
+    // línea en blanco para que el técnico escriba la cantidad a mano
+    doc.setDrawColor(120);
+    doc.line(margenX + anchoUtil - 30, y, margenX + anchoUtil, y);
     doc.setDrawColor(220);
-    doc.line(margenX, y + 2, margenX + anchoUtil, y + 2);
-    y += 7;
+    doc.line(margenX, y + 3, margenX + anchoUtil, y + 3);
+    y += 9;
   });
 
   y += 6;
@@ -115,11 +122,6 @@ export async function generarBoletaInstalacion(cliente, materiales, observacione
   y += 20;
 
   // --- Firmas ---
-  const ahora = new Date();
-  const fechaTexto = ahora.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
-  doc.text(`Fecha: ${fechaTexto}`, margenX, y);
-  y += 20;
-
   doc.setDrawColor(120);
   doc.line(margenX, y, 90, y);
   doc.line(120, y, 190, y);
