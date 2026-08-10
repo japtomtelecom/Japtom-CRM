@@ -196,9 +196,25 @@ function PagosPageInner() {
   async function registrar(e) {
     e.preventDefault();
     if (!seleccionado || !monto) return;
+
+    const mesesCubiertos = mesesCubiertosPorTipo(tipoPago, mesesPersonalizado);
+
+    // Calcula hasta qué fecha cubre este pago, y avisa si ya quedaría vencido
+    if (mesesCubiertos > 0) {
+      const [anio, mes] = mesCorresponde.split('-').map(Number);
+      const fechaCobertura = new Date(anio, mes - 1 + mesesCubiertos, 0); // último día del último mes cubierto
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      if (fechaCobertura < hoy) {
+        const seguro = confirm(
+          `⚠️ Atención: con "${mesCorresponde}" como mes correspondiente, este pago cubre hasta el ${fechaCobertura.toLocaleDateString('es-BO')}, que ya pasó — el cliente va a aparecer como VENCIDO apenas guardes.\n\n¿Es correcto igual, o preferís cancelar y cambiar el mes?\n\nAceptar = guardar igual. Cancelar = no guardar.`
+        );
+        if (!seguro) return;
+      }
+    }
+
     if (!confirm(`¿Confirmas registrar un pago de ${formatBs(monto)} para ${seleccionado.nombre}?`)) return;
     setGuardando(true);
-    const mesesCubiertos = mesesCubiertosPorTipo(tipoPago, mesesPersonalizado);
     const { error } = await supabase.from('pagos').insert({
       cliente_id: seleccionado.id,
       fecha_pago: fecha,
