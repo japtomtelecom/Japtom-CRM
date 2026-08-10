@@ -7,6 +7,76 @@ import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
+import { generarContrato } from '@/lib/generarContrato';
+import { generarBoletaInstalacion } from '@/lib/generarBoleta';
+
+const MATERIALES = [
+  'Fibra drop',
+  'ONT',
+  'Tensores plásticos',
+  'Grampas plásticas',
+  'Precintos plásticos',
+  'Roseta óptica',
+  'Patch cord óptico',
+];
+
+function ModalBoleta({ cliente, empresaNombre, onClose }) {
+  const [cantidades, setCantidades] = useState({});
+  const [observaciones, setObservaciones] = useState('Puerto óptico en NAP: ');
+  const [generando, setGenerando] = useState(false);
+
+  async function generar() {
+    setGenerando(true);
+    await generarBoletaInstalacion(cliente, cantidades, observaciones, empresaNombre);
+    setGenerando(false);
+    onClose();
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={onClose}
+    >
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 380, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>Boleta de instalación</h3>
+        <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{cliente.nombre} · {cliente.codigo}</p>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 12 }}>
+          {MATERIALES.map((mat) => (
+            <div key={mat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8 }}>
+              <label style={{ fontSize: 13 }}>{mat}</label>
+              <input
+                type="number"
+                min="0"
+                className="input"
+                style={{ width: 80 }}
+                value={cantidades[mat] || ''}
+                onChange={(e) => setCantidades({ ...cantidades, [mat]: e.target.value })}
+              />
+            </div>
+          ))}
+        </div>
+
+        <label className="label" style={{ marginTop: 12 }}>Observaciones</label>
+        <textarea
+          className="input"
+          rows={3}
+          value={observaciones}
+          onChange={(e) => setObservaciones(e.target.value)}
+        />
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={generar} disabled={generando} className="btn-primary">
+            {generando ? 'Generando…' : 'Generar PDF'}
+          </button>
+          <button onClick={onClose} className="btn-secondary">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 export default function FichaClientePage() {
   const params = useParams();
@@ -22,6 +92,8 @@ export default function FichaClientePage() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [verPassword, setVerPassword] = useState(false);
+  const [mostrarBoleta, setMostrarBoleta] = useState(false);
+  const [generandoContrato, setGenerandoContrato] = useState(false);
 
   async function cargar() {
     setLoading(true);
@@ -88,6 +160,12 @@ export default function FichaClientePage() {
     cargar();
   }
 
+  async function handleGenerarContrato() {
+    setGenerandoContrato(true);
+    await generarContrato(cliente, config.empresa_nombre);
+    setGenerandoContrato(false);
+  }
+
   if (loading) {
     return (
       <AppShell>
@@ -112,7 +190,7 @@ export default function FichaClientePage() {
 
   return (
     <AppShell>
-      <div className="flex items-center justify-between mb-6">
+      <div className="flex items-center justify-between mb-6 flex-wrap gap-3">
         <div>
           <Link href="/clientes" className="text-brand-500 text-sm hover:underline">
             ← Volver a Clientes
@@ -120,12 +198,18 @@ export default function FichaClientePage() {
           <h1 className="font-display text-2xl font-bold text-brand-800 mt-1">{cliente.nombre}</h1>
           <p className="text-brand-500 text-sm font-mono">{cliente.codigo}</p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           {wa && (
             <a href={wa} target="_blank" rel="noreferrer" className="btn-whatsapp">
               📲 WhatsApp
             </a>
           )}
+          <button onClick={handleGenerarContrato} disabled={generandoContrato} className="btn-secondary">
+            {generandoContrato ? 'Generando…' : '📄 Generar contrato'}
+          </button>
+          <button onClick={() => setMostrarBoleta(true)} className="btn-secondary">
+            🧾 Boleta de instalación
+          </button>
           {isAdmin && !editando && (
             <button onClick={() => setEditando(true)} className="btn-primary">
               ✏️ Editar
@@ -346,6 +430,10 @@ export default function FichaClientePage() {
           </div>
         </div>
       </div>
+
+      {mostrarBoleta && (
+        <ModalBoleta cliente={cliente} empresaNombre={config.empresa_nombre} onClose={() => setMostrarBoleta(false)} />
+      )}
     </AppShell>
   );
 }
