@@ -94,6 +94,7 @@ function ModalMeses({ cliente, onClose }) {
 }
 
 export default function ClientesPage() {
+  const { isAdmin } = usePerfil();
   const { sucursalActiva, esFija } = useSucursalActiva();
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -103,25 +104,27 @@ export default function ClientesPage() {
   const [loading, setLoading] = useState(true);
   const [config, setConfig] = useState({});
   const [clienteMeses, setClienteMeses] = useState(null);
+  const [msg, setMsg] = useState('');
 
   useEffect(() => {
     if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
   }, [sucursalActiva]);
 
+  async function load() {
+    setLoading(true);
+    const { data } = await supabase
+      .from('v_clientes_estado')
+      .select('*')
+      .order('codigo', { ascending: true });
+    setClientes(data || []);
+    const { data: cfgRows } = await supabase.from('config').select('*');
+    const cfg = {};
+    (cfgRows || []).forEach((r) => (cfg[r.clave] = r.valor));
+    setConfig(cfg);
+    setLoading(false);
+  }
+
   useEffect(() => {
-    async function load() {
-      setLoading(true);
-      const { data } = await supabase
-        .from('v_clientes_estado')
-        .select('*')
-        .order('codigo', { ascending: true });
-      setClientes(data || []);
-      const { data: cfgRows } = await supabase.from('config').select('*');
-      const cfg = {};
-      (cfgRows || []).forEach((r) => (cfg[r.clave] = r.valor));
-      setConfig(cfg);
-      setLoading(false);
-    }
     load();
   }, []);
 
@@ -133,6 +136,20 @@ export default function ClientesPage() {
     setClientes((prev) =>
       prev.map((c) => (c.id === clienteId ? { ...c, ultimo_mensaje_enviado: new Date().toISOString() } : c))
     );
+  }
+
+  async function borrarCliente(cliente) {
+    if (!confirm(`¿Borrar al cliente "${cliente.nombre}" (${cliente.codigo})? Esto también borra su historial de pagos. Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`Confirmá una vez más: ¿SEGURO que querés borrar a "${cliente.nombre}" definitivamente?`)) return;
+
+    setMsg('');
+    const { error } = await supabase.from('clientes').delete().eq('id', cliente.id);
+    if (error) {
+      setMsg('Error al borrar: ' + error.message);
+      return;
+    }
+    setMsg(`Cliente "${cliente.nombre}" borrado.`);
+    load();
   }
 
   const diasDisponibles = useMemo(() => {
@@ -218,6 +235,8 @@ export default function ClientesPage() {
         </select>
       </div>
 
+      {msg && <p className="text-sm text-brand-600 mb-3">{msg}</p>}
+
       <div className="card overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
@@ -276,7 +295,7 @@ export default function ClientesPage() {
                     </button>
                     {wa && (
                       
-                       <a href={wa}
+                        href={wa}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => marcarMensajeEnviado(c.id)}
@@ -286,9 +305,17 @@ export default function ClientesPage() {
                         📲
                       </a>
                     )}
-                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
+                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline mr-3">
                       Ver ficha →
                     </Link>
+                    {isAdmin && (
+                      <button
+                        onClick={() => borrarCliente(c)}
+                        className="text-red-500 hover:underline text-xs"
+                      >
+                        Borrar
+                      </button>
+                    )}
                   </td>
                 </tr>
               );
