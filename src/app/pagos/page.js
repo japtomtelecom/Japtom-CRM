@@ -42,7 +42,7 @@ function PagosPageInner() {
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
-  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', meses_cubiertos: 1 });
+  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
 
   async function cargarPagos() {
     let query = supabase
@@ -75,12 +75,10 @@ function PagosPageInner() {
     setTotalPagos(count || 0);
   }
 
-  // Cuando cambia la búsqueda, vuelve a la página 1
   useEffect(() => {
     setPagina(1);
   }, [busquedaPagos]);
 
-  // Recarga (con un pequeño delay al escribir, para no disparar una consulta por cada letra)
   useEffect(() => {
     const timer = setTimeout(() => {
       cargarPagos();
@@ -99,7 +97,6 @@ function PagosPageInner() {
       });
   }, []);
 
-  // Si llegamos desde /pagos/mensual con ?cliente_id=...&mes=..., precargar el formulario
   useEffect(() => {
     const clienteId = searchParams.get('cliente_id');
     const mes = searchParams.get('mes');
@@ -125,6 +122,7 @@ function PagosPageInner() {
       fecha_pago: p.fecha_pago.slice(0, 10),
       monto: p.monto,
       tipo_pago: p.tipo_pago || 'Mensual',
+      mes_corresponde: (p.mes_corresponde || p.fecha_pago).slice(0, 7),
       meses_cubiertos: p.meses_cubiertos || 1,
     });
   }
@@ -137,6 +135,7 @@ function PagosPageInner() {
         fecha_pago: edicion.fecha_pago,
         monto: Number(edicion.monto),
         tipo_pago: edicion.tipo_pago,
+        mes_corresponde: `${edicion.mes_corresponde}-01`,
         meses_cubiertos: mesesCubiertos,
       })
       .eq('id', id);
@@ -145,19 +144,6 @@ function PagosPageInner() {
       return;
     }
     setEditandoId(null);
-    cargarPagos();
-  }
-
-  // Actualiza solo el mes de un pago, directo desde la tabla (sin entrar a "Editar")
-  async function actualizarMes(id, nuevoMesISO) {
-    const { error } = await supabase
-      .from('pagos')
-      .update({ mes_corresponde: `${nuevoMesISO}-01` })
-      .eq('id', id);
-    if (error) {
-      setMsg('Error al cambiar el mes: ' + error.message);
-      return;
-    }
     cargarPagos();
   }
 
@@ -199,10 +185,9 @@ function PagosPageInner() {
 
     const mesesCubiertos = mesesCubiertosPorTipo(tipoPago, mesesPersonalizado);
 
-    // Calcula hasta qué fecha cubre este pago, y avisa si ya quedaría vencido
     if (mesesCubiertos > 0) {
       const [anio, mes] = mesCorresponde.split('-').map(Number);
-      const fechaCobertura = new Date(anio, mes - 1 + mesesCubiertos, 0); // último día del último mes cubierto
+      const fechaCobertura = new Date(anio, mes - 1 + mesesCubiertos, 0);
       const hoy = new Date();
       hoy.setHours(0, 0, 0, 0);
       if (fechaCobertura < hoy) {
@@ -409,8 +394,8 @@ function PagosPageInner() {
                           <input
                             type="month"
                             className="input"
-                            value={(p.mes_corresponde || p.fecha_pago).slice(0, 7)}
-                            onChange={(e) => actualizarMes(p.id, e.target.value)}
+                            value={edicion.mes_corresponde}
+                            onChange={(e) => setEdicion({ ...edicion, mes_corresponde: e.target.value })}
                           />
                           {edicion.tipo_pago === 'Personalizado' && (
                             <input
@@ -446,14 +431,10 @@ function PagosPageInner() {
                           {p.tipo_pago || 'Mensual'}
                           {p.tipo_pago === 'Personalizado' ? ` (${p.meses_cubiertos} m.)` : ''}
                         </td>
-                        <td className="py-2">
-                          <input
-                            type="month"
-                            className="input"
-                            style={{ minWidth: 130 }}
-                            value={(p.mes_corresponde || p.fecha_pago).slice(0, 7)}
-                            onChange={(e) => actualizarMes(p.id, e.target.value)}
-                          />
+                        <td className="py-2 text-brand-400 text-xs capitalize">
+                          {p.mes_corresponde
+                            ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+                            : '—'}
                         </td>
                         <td className="py-2 text-right whitespace-nowrap">
                           {waPago && (
