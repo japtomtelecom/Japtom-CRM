@@ -29,8 +29,7 @@ export default function LoginPage() {
       <form onSubmit={handleSubmit} className="card p-8 w-full max-w-sm">
         <div className="text-center mb-6">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="JapTom Telecom" className="w-20 h-20 mx-auto mb-2" />
-          <div className="font-display text-2xl font-bold text-brand-700">JapTom Telecom</div>
+         <img src="/logo.png" alt="JapTom Telecom" className="w-40 h-auto mx-auto mb-3" />
           <div className="text-brand-500 text-sm">Panel de gestión (CRM)</div>
         </div>
         <label className="label">Correo</label>

@@ -60,8 +60,7 @@ export default function AppShell({ children }) {
         <div className="flex md:hidden items-center justify-between px-4 py-3 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/logo.png" alt="" className="w-7 h-7 shrink-0" />
-            <span className="font-display font-bold text-sm shrink-0">JapTom</span>
+            <img src="/logo.png" alt="" className="w-9 h-9 shrink-0" />
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {esFija ? (
@@ -88,13 +87,9 @@ export default function AppShell({ children }) {
           </div>
         </div>
 
-        <div className="p-4 hidden md:flex items-center gap-2">
+        <div className="p-4 hidden md:flex items-center justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo.png" alt="" className="w-9 h-9" />
-          <div>
-            <div className="font-display text-xl font-bold leading-tight">JapTom</div>
-            <div className="text-brand-200 text-xs">CRM Telecom</div>
-          </div>
+          <img src="/logo.png" alt="JapTom Telecom" className="w-full h-auto max-w-[180px]" />
         </div>
         <nav className="flex md:flex-col overflow-x-auto md:overflow-visible flex-1">
           {NAV.map((item) => {
