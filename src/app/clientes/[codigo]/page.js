@@ -83,7 +83,7 @@ function PanelMikrotik({ cliente, onRecargar }) {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Error desconocido.');
       setResultado({ ok: true, mensaje: json.mensaje });
-      onRecargar?.();
+      onRecargar?.(true);
     } catch (e) {
       setResultado({ ok: false, error: e.message });
     } finally {
@@ -177,9 +177,9 @@ export default function FichaClientePage() {
   const [verPassword, setVerPassword] = useState(false);
   const [mostrarBoleta, setMostrarBoleta] = useState(false);
   const [generandoContrato, setGenerandoContrato] = useState(false);
-
-  async function cargar() {
-    setLoading(true);
+async function cargar(silencioso = false) {
+    if (!silencioso) setLoading(true);
+ 
     const { data: c } = await supabase
       .from('v_clientes_estado')
       .select('*')
