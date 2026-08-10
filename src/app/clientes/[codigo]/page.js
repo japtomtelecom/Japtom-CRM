@@ -64,6 +64,109 @@ function ModalBoleta({ cliente, empresaNombre, onClose }) {
   );
 }
 
+// Llama a un endpoint de /api/ (mikrotik) mandando el token de sesión del usuario logueado
+async function llamarApiMikrotik(endpoint, clienteId) {
+  const { data: sessionData } = await supabase.auth.getSession();
+  const token = sessionData?.session?.access_token;
+  const res = await fetch(`/api/${endpoint}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ clienteId }),
+  });
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error || 'Error desconocido.');
+  return json;
+}
+
+function PanelMikrotik({ cliente, onRecargar }) {
+  const [accionEnCurso, setAccionEnCurso] = useState(null); // 'crear' | 'bloquear' | 'reactivar' | 'plan' | 'cerrar' | null
+  const [resultado, setResultado] = useState(null); // { ok, mensaje } | { ok: false, error }
+
+  async function ejecutar(accion, endpoint, activar) {
+    setAccionEnCurso(accion);
+    setResultado(null);
+    try {
+      const body = endpoint === 'toggle' ? { clienteId: cliente.id, activar } : { clienteId: cliente.id };
+      const { data: sessionData } = await supabase.auth.getSession();
+      const token = sessionData?.session?.access_token;
+      const res = await fetch(`/api/${endpoint}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+        body: JSON.stringify(body),
+      });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || 'Error desconocido.');
+      setResultado({ ok: true, mensaje: json.mensaje });
+      onRecargar?.();
+    } catch (e) {
+      setResultado({ ok: false, error: e.message });
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-brand-700 mb-3">Control MikroTik</h2>
+
+      {!cliente.pppoe_usuario && (
+        <p className="text-xs text-amber-600 mb-3">
+          Este cliente no tiene "Usuario PPPoE" configurado. Completalo en "Editar" antes de usar estas acciones.
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => ejecutar('crear', 'crear-usuario')}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm"
+        >
+          {accionEnCurso === 'crear' ? 'Creando…' : '➕ Crear usuario'}
+        </button>
+        <button
+          onClick={() => ejecutar('plan', 'cambiar-plan')}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm"
+        >
+          {accionEnCurso === 'plan' ? 'Aplicando…' : '🔄 Sincronizar plan'}
+        </button>
+        <button
+          onClick={() => ejecutar('bloquear', 'toggle', false)}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm"
+          style={{ color: '#791F1F' }}
+        >
+          {accionEnCurso === 'bloquear' ? 'Bloqueando…' : '🔒 Bloquear servicio'}
+        </button>
+        <button
+          onClick={() => ejecutar('reactivar', 'toggle', true)}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm"
+          style={{ color: '#085041' }}
+        >
+          {accionEnCurso === 'reactivar' ? 'Reactivando…' : '🔓 Reactivar servicio'}
+        </button>
+        <button
+          onClick={() => ejecutar('cerrar', 'cerrar-sesion')}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm col-span-2"
+        >
+          {accionEnCurso === 'cerrar' ? 'Cerrando…' : '⏏️ Cerrar sesión activa (forzar reinicio)'}
+        </button>
+      </div>
+
+      {resultado && (
+        <p className={`text-xs mt-3 ${resultado.ok ? 'text-brand-600' : 'text-red-600'}`}>
+          {resultado.ok ? resultado.mensaje : resultado.error}
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function FichaClientePage() {
   const params = useParams();
   const { isAdmin } = usePerfil();
@@ -390,6 +493,8 @@ export default function FichaClientePage() {
               </div>
             )}
           </div>
+
+          {isAdmin && !editando && <PanelMikrotik cliente={cliente} onRecargar={cargar} />}
 
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
