@@ -64,26 +64,9 @@ function ModalBoleta({ cliente, empresaNombre, onClose }) {
   );
 }
 
-// Llama a un endpoint de /api/ (mikrotik) mandando el token de sesión del usuario logueado
-async function llamarApiMikrotik(endpoint, clienteId) {
-  const { data: sessionData } = await supabase.auth.getSession();
-  const token = sessionData?.session?.access_token;
-  const res = await fetch(`/api/${endpoint}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${token}`,
-    },
-    body: JSON.stringify({ clienteId }),
-  });
-  const json = await res.json();
-  if (!res.ok) throw new Error(json.error || 'Error desconocido.');
-  return json;
-}
-
 function PanelMikrotik({ cliente, onRecargar }) {
-  const [accionEnCurso, setAccionEnCurso] = useState(null); // 'crear' | 'bloquear' | 'reactivar' | 'plan' | 'cerrar' | null
-  const [resultado, setResultado] = useState(null); // { ok, mensaje } | { ok: false, error }
+  const [accionEnCurso, setAccionEnCurso] = useState(null);
+  const [resultado, setResultado] = useState(null);
 
   async function ejecutar(accion, endpoint, activar) {
     setAccionEnCurso(accion);
@@ -92,7 +75,7 @@ function PanelMikrotik({ cliente, onRecargar }) {
       const body = endpoint === 'toggle' ? { clienteId: cliente.id, activar } : { clienteId: cliente.id };
       const { data: sessionData } = await supabase.auth.getSession();
       const token = sessionData?.session?.access_token;
-      const res = await fetch(`/api/${endpoint}`, {
+      const res = await fetch(`/api/mikrotik/${endpoint}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify(body),
