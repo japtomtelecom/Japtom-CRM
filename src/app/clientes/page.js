@@ -295,7 +295,7 @@ export default function ClientesPage() {
                     </button>
                     {wa && (
                       
-                        href={wa}
+                       <a href={wa}
                         target="_blank"
                         rel="noreferrer"
                         onClick={() => marcarMensajeEnviado(c.id)}
