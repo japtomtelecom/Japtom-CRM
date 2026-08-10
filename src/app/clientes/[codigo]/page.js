@@ -140,12 +140,23 @@ function PanelMikrotik({ cliente, onRecargar }) {
           {accionEnCurso === 'cerrar' ? 'Cerrando…' : '⏏️ Cerrar sesión activa (forzar reinicio)'}
         </button>
       </div>
-
-      {resultado && (
-        <p className={`text-xs mt-3 ${resultado.ok ? 'text-brand-600' : 'text-red-600'}`}>
+{resultado && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 12px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            background: resultado.ok ? '#E1F5EE' : '#FCEBEB',
+            color: resultado.ok ? '#085041' : '#791F1F',
+          }}
+        >
+          {resultado.ok ? '✅ ' : '⚠️ '}
           {resultado.ok ? resultado.mensaje : resultado.error}
-        </p>
+        </div>
       )}
+   
     </div>
   );
 }
