@@ -178,6 +178,26 @@ function PagosPageInner() {
     const { data } = await query;
     setClientes(data || []);
   }
+async function marcarAlDia() {
+    if (!seleccionado) return;
+    if (!confirm(`¿Marcar a "${seleccionado.nombre}" como Al día (vence en 1 mes desde hoy), sin registrar un pago?`)) return;
+    const fecha1MesDespues = new Date();
+    fecha1MesDespues.setMonth(fecha1MesDespues.getMonth() + 1);
+    const fechaISO = fecha1MesDespues.toISOString().slice(0, 10);
+
+    const { error } = await supabase
+      .from('clientes')
+      .update({ fecha_vencimiento_manual: fechaISO })
+      .eq('id', seleccionado.id);
+
+    if (error) {
+      setMsg('Error: ' + error.message);
+      return;
+    }
+    setMsg(`"${seleccionado.nombre}" marcado como Al día hasta ${fecha1MesDespues.toLocaleDateString('es-BO')}.`);
+    setSeleccionado(null);
+    setBusqueda('');
+  }
 
   async function registrar(e) {
     e.preventDefault();
@@ -316,8 +336,16 @@ function PagosPageInner() {
             <p className="text-xs text-brand-400 -mt-1">
               El mes es el primero que cubre el pago — Semestral/Anual calculan solos los siguientes.
             </p>
-            <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
+           <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
               {guardando ? 'Registrando…' : 'Registrar pago'}
+            </button>
+            <button
+              type="button"
+              disabled={!seleccionado}
+              onClick={marcarAlDia}
+              className="btn-secondary w-full"
+            >
+              ✅ Marcar al día (sin registrar pago)
             </button>
             {msg && <p className="text-sm text-brand-600">{msg}</p>}
           </form>
