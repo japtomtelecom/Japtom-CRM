@@ -425,3 +425,5 @@ funciona sin abrir el navegador). Si más adelante necesitas una app nativa
 se puede reescribir esta misma lógica en React Native o Kotlin usando la
 misma base de datos de Supabase — puedo generar ese código cuando lo
 necesites.
+
+
