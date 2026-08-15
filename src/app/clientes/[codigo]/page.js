@@ -298,6 +298,28 @@ export default function FichaClientePage() {
   const [mostrarBoleta, setMostrarBoleta] = useState(false);
   const [generandoContrato, setGenerandoContrato] = useState(false);
   const [opticoOlt, setOpticoOlt] = useState(null);
+  const [planes, setPlanes] = useState([]);
+
+  useEffect(() => {
+    supabase
+      .from('planes')
+      .select('*')
+      .then(({ data }) => setPlanes(data || []));
+  }, []);
+
+  // Solo los planes de la misma ciudad que tiene el formulario en este
+  // momento — así no se puede elegir por error un plan de la otra sede
+  // (su "Perfil MikroTik" no existiría en el router de esta ciudad).
+  const planesDeLaCiudad = planes.filter((p) => (p.ciudad || 'El Alto') === (form?.ciudad || 'El Alto'));
+
+  function aplicarPlan(nombrePlan) {
+    const p = planesDeLaCiudad.find((pl) => pl.nombre === nombrePlan);
+    if (p) {
+      setForm({ ...form, plan: p.nombre, velocidad: p.velocidad, frecuencia: p.frecuencia, precio: p.precio });
+    } else {
+      setForm({ ...form, plan: nombrePlan });
+    }
+  }
 
   async function cargar(silencioso = false) {
     if (!silencioso) setLoading(true);
@@ -505,7 +527,17 @@ export default function FichaClientePage() {
               </div>
               <div>
                 <label className="label">Plan</label>
-                <input className="input" value={form.plan || ''} onChange={(e) => setForm({ ...form, plan: e.target.value })} />
+                <select className="input" value={form.plan || ''} onChange={(e) => aplicarPlan(e.target.value)}>
+                  <option value="">— Selecciona un plan —</option>
+                  {planesDeLaCiudad.map((p) => (
+                    <option key={p.id} value={p.nombre}>
+                      {p.nombre} ({p.velocidad}, Bs {p.precio})
+                    </option>
+                  ))}
+                  {form.plan && !planesDeLaCiudad.some((p) => p.nombre === form.plan) && (
+                    <option value={form.plan}>{form.plan} (no está en el catálogo)</option>
+                  )}
+                </select>
               </div>
               <div>
                 <label className="label">Frecuencia</label>
