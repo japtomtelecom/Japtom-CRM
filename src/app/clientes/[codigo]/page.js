@@ -442,7 +442,8 @@ export default function FichaClientePage() {
       </div>
 
       <div className="grid md:grid-cols-3 gap-6 items-start">
-        <div className="card p-5 md:col-span-2">
+        <div className="md:col-span-2 space-y-6">
+        <div className="card p-5">
           <h2 className="font-semibold text-brand-700 mb-3">Datos del cliente</h2>
 
           {!editando ? (
@@ -577,7 +578,7 @@ export default function FichaClientePage() {
         </div>
 
         {isAdmin && opticoOlt && (
-          <div className="card p-5 md:col-span-2">
+          <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-4">📶 Potencia óptica — {cliente.nombre}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
               <div className="rounded-lg p-4 text-center" style={{ background: '#F5F7F6' }}>
@@ -611,6 +612,7 @@ export default function FichaClientePage() {
             </div>
           </div>
         )}
+        </div>
 
         <div className="md:col-span-1 space-y-6">
           <div className="card p-5">
