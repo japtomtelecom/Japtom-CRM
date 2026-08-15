@@ -161,10 +161,17 @@ function PanelMikrotik({ cliente, onRecargar }) {
   );
 }
 
-function PanelOlt({ cliente, onRecargar }) {
+const COLOR_NIVEL_OLT = {
+  bueno: '#085041',
+  marginal: '#8a6d00',
+  critico: '#791F1F',
+  alto: '#8a6d00',
+  desconocido: '#666',
+};
+
+function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
   const [accionEnCurso, setAccionEnCurso] = useState(null);
   const [resultado, setResultado] = useState(null);
-  const [optico, setOptico] = useState(null);
 
   async function llamar(endpoint, body) {
     const { data: sessionData } = await supabase.auth.getSession();
@@ -220,14 +227,6 @@ function PanelOlt({ cliente, onRecargar }) {
     }
   }
 
-  const colorNivel = {
-    bueno: '#085041',
-    marginal: '#8a6d00',
-    critico: '#791F1F',
-    alto: '#8a6d00',
-    desconocido: '#666',
-  };
-
   return (
     <div className="card p-5">
       <h2 className="font-semibold text-brand-700 mb-3">Control OLT (V-Sol)</h2>
@@ -272,30 +271,9 @@ function PanelOlt({ cliente, onRecargar }) {
       </div>
 
       {optico && (
-        <div className="mt-3 text-sm space-y-1" style={{ padding: '10px 12px', borderRadius: 6, background: '#F5F7F6' }}>
-          <div className="flex justify-between">
-            <span className="text-brand-400">Estado</span>
-            <span className="font-medium">{optico.online ? '🟢 En línea' : optico.encontrado ? '🔴 Desconectada' : '—'}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-brand-400">Rx (recibida en OLT)</span>
-            <span className="font-medium" style={{ color: colorNivel[optico.nivelRx] || '#666' }}>
-              {optico.rxDbm ?? '—'} dBm ({optico.nivelRx})
-            </span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-brand-400">Tx (ONU)</span>
-            <span className="font-medium">{optico.txDbm ?? '—'} dBm</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-brand-400">Temperatura</span>
-            <span className="font-medium">{optico.temperaturaC ?? '—'} °C</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-brand-400">Voltaje</span>
-            <span className="font-medium">{optico.voltajeV ?? '—'} V</span>
-          </div>
-        </div>
+        <p className="mt-3 text-xs text-brand-400">
+          👆 Resultado mostrado arriba, en "Potencia óptica".
+        </p>
       )}
 
       {resultado && (
@@ -334,7 +312,9 @@ export default function FichaClientePage() {
   const [verPassword, setVerPassword] = useState(false);
   const [mostrarBoleta, setMostrarBoleta] = useState(false);
   const [generandoContrato, setGenerandoContrato] = useState(false);
-async function cargar(silencioso = false) {
+  const [opticoOlt, setOpticoOlt] = useState(null);
+
+  async function cargar(silencioso = false) {
     if (!silencioso) setLoading(true);
  
     const { data: c } = await supabase
@@ -596,6 +576,42 @@ async function cargar(silencioso = false) {
           )}
         </div>
 
+        {isAdmin && opticoOlt && (
+          <div className="card p-5 md:col-span-2">
+            <h2 className="font-semibold text-brand-700 mb-4">📶 Potencia óptica — {cliente.nombre}</h2>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
+              <div className="rounded-lg p-4 text-center" style={{ background: '#F5F7F6' }}>
+                <p className="text-xs text-brand-400 mb-1">Estado</p>
+                <p className="text-lg font-semibold">
+                  {opticoOlt.online ? '🟢 En línea' : opticoOlt.encontrado ? '🔴 Desconectada' : '—'}
+                </p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ background: '#F5F7F6' }}>
+                <p className="text-xs text-brand-400 mb-1">Rx (recibida en OLT)</p>
+                <p className="text-2xl font-semibold" style={{ color: COLOR_NIVEL_OLT[opticoOlt.nivelRx] || '#666' }}>
+                  {opticoOlt.rxDbm ?? '—'}
+                </p>
+                <p className="text-xs text-brand-400">dBm · {opticoOlt.nivelRx}</p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ background: '#F5F7F6' }}>
+                <p className="text-xs text-brand-400 mb-1">Tx (ONU)</p>
+                <p className="text-2xl font-semibold">{opticoOlt.txDbm ?? '—'}</p>
+                <p className="text-xs text-brand-400">dBm</p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ background: '#F5F7F6' }}>
+                <p className="text-xs text-brand-400 mb-1">Temperatura</p>
+                <p className="text-2xl font-semibold">{opticoOlt.temperaturaC ?? '—'}</p>
+                <p className="text-xs text-brand-400">°C</p>
+              </div>
+              <div className="rounded-lg p-4 text-center" style={{ background: '#F5F7F6' }}>
+                <p className="text-xs text-brand-400 mb-1">Voltaje</p>
+                <p className="text-2xl font-semibold">{opticoOlt.voltajeV ?? '—'}</p>
+                <p className="text-xs text-brand-400">V</p>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="md:col-span-1 space-y-6">
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Configuración MikroTik</h2>
@@ -686,7 +702,9 @@ async function cargar(silencioso = false) {
             )}
           </div>
 
-          {isAdmin && !editando && <PanelOlt cliente={cliente} onRecargar={cargar} />}
+          {isAdmin && !editando && (
+            <PanelOlt cliente={cliente} onRecargar={cargar} optico={opticoOlt} setOptico={setOpticoOlt} />
+          )}
 
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
