@@ -51,6 +51,14 @@ export function ejecutarComandosOlt(config, comandos, opciones = {}) {
       terminado = true;
       clearTimeout(limiteGeneral);
       if (settleTimer) clearTimeout(settleTimer);
+      // Cierra la conexión SSH siempre, pase lo que pase (éxito, error o
+      // timeout). Antes solo se cerraba el "shell" (con "exit"), pero no la
+      // conexión SSH en sí — esta OLT solo permite una sesión SSH conectada
+      // a la vez, y dejar conexiones a medio cerrar hacía que, después de
+      // varias consultas seguidas, la OLT empezara a rechazar abrir nuevos
+      // canales ("Channel open failure: open failed") aunque nadie tuviera
+      // ninguna sesión abierta a mano (ni PuTTY ni nada).
+      try { conn.end(); } catch {}
       fn(valor);
     }
 
