@@ -16,23 +16,38 @@ function formatMbps(bps) {
 //
 // - endpoint: ruta completa, ej. "/api/mikrotik/trafico-router"
 // - body: objeto que se manda en cada llamada, ej. { ciudad: 'Tarija' }
+// Cuántas veces seguidas tiene que fallar la consulta antes de mostrar el
+// error a pantalla completa. Una sola consulta que falla (un hipo de un
+// segundo de conexión con el MikroTik, algo normal en una red real) no
+// alcanza para tapar todo el gráfico — recién se avisa si falla varias
+// veces seguidas, que ahí sí es una señal de que algo dejó de funcionar de
+// verdad.
+const FALLOS_PARA_AVISAR = 3;
+
 export default function GraficoTrafico({ titulo, endpoint, body, intervaloMs = 3000 }) {
   const [puntos, setPuntos] = useState([]);
   const [estado, setEstado] = useState('cargando'); // cargando | ok | offline | sin-datos | error
   const [error, setError] = useState('');
+  const [avisoTransitorio, setAvisoTransitorio] = useState(false);
   const timerRef = useRef(null);
   const activoRef = useRef(true);
+  const fallosRef = useRef(0);
   const bodyKey = JSON.stringify(body);
 
   useEffect(() => {
     activoRef.current = true;
+    fallosRef.current = 0;
     setPuntos([]);
     setEstado('cargando');
+    setAvisoTransitorio(false);
 
     async function tick() {
       try {
         const json = await llamarApiAdmin(endpoint, body);
         if (!activoRef.current) return;
+
+        fallosRef.current = 0;
+        setAvisoTransitorio(false);
 
         if (json.online === false) {
           setEstado('offline');
@@ -48,8 +63,15 @@ export default function GraficoTrafico({ titulo, endpoint, body, intervaloMs = 3
         }
       } catch (e) {
         if (!activoRef.current) return;
-        setEstado('error');
-        setError(e.message);
+        fallosRef.current += 1;
+        if (fallosRef.current >= FALLOS_PARA_AVISAR) {
+          setEstado('error');
+          setError(e.message);
+        } else {
+          // Falla puntual: no se borra el gráfico que ya se venía
+          // mostrando, solo se avisa chiquito que hubo un hipo.
+          setAvisoTransitorio(true);
+        }
       } finally {
         if (activoRef.current) timerRef.current = setTimeout(tick, intervaloMs);
       }
@@ -116,7 +138,10 @@ export default function GraficoTrafico({ titulo, endpoint, body, intervaloMs = 3
             <path d={trazo('rx')} fill="none" stroke="#085041" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
             <path d={trazo('tx')} fill="none" stroke="#8a6d00" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
           </svg>
-          <p className="text-xs text-brand-400 mt-2">🟢 Bajada · 🟡 Subida — se actualiza solo cada {Math.round(intervaloMs / 1000)}s</p>
+          <p className="text-xs text-brand-400 mt-2">
+            🟢 Bajada · 🟡 Subida — se actualiza solo cada {Math.round(intervaloMs / 1000)}s
+            {avisoTransitorio && ' · ⚠️ hipo de conexión, reintentando…'}
+          </p>
         </>
       )}
     </div>

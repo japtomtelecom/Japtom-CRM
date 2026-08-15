@@ -33,10 +33,28 @@ export async function POST(request) {
       port: routerConfig.port,
       timeout: 8,
     });
-    await conn.connect();
 
-    const trafico = await leerTraficoConConexion(conn, routerConfig.wanIface);
-    conn.close();
+    // Se separan los dos pasos (conectar / pedir el tráfico) en try/catch
+    // distintos para poder avisar exactamente dónde se traba si algo falla
+    // — "monitor-traffic" es un comando distinto a los que ya usaba el CRM
+    // (crear-usuario, bloquear, etc.) y conviene poder distinguir un
+    // problema de conexión de uno del comando en sí.
+    try {
+      await conn.connect();
+    } catch (e) {
+      throw new Error('No se pudo conectar: ' + e.message);
+    }
+
+    let trafico;
+    try {
+      trafico = await leerTraficoConConexion(conn, routerConfig.wanIface);
+    } catch (e) {
+      throw new Error(
+        `Se conectó, pero el comando de tráfico ("monitor-traffic" en la interfaz "${routerConfig.wanIface}") no respondió: ${e.message}`
+      );
+    } finally {
+      try { conn.close(); } catch {}
+    }
 
     if (!trafico) {
       return Response.json(
