@@ -72,11 +72,23 @@ export function ejecutarComandosOlt(config, comandos, opciones = {}) {
 
     conn.on('error', (err) => finalizar(reject, new Error('No se pudo conectar por SSH: ' + err.message)));
 
+    // Muchos equipos de telecomunicaciones (esta OLT V-Sol incluida) solo
+    // aceptan autenticación "keyboard-interactive" en vez de "password"
+    // plano — es el mismo mecanismo que usa PuTTY cuando te muestra el
+    // prompt "Password:" después de conectar. Si el cliente SSH no ofrece
+    // este método, la conexión falla con "All configured authentication
+    // methods failed" aunque el usuario y la contraseña sean correctos.
+    // Acá respondemos cada "prompt" que pida la OLT con la misma contraseña.
+    conn.on('keyboard-interactive', (name, instructions, instructionsLang, prompts, finish) => {
+      finish(prompts.map(() => config.password));
+    });
+
     conn.connect({
       host: config.host,
       port: config.port,
       username: config.user,
       password: config.password,
+      tryKeyboard: true,
       readyTimeout: 10000,
     });
   });
