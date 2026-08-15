@@ -25,9 +25,11 @@ export async function POST(request) {
 
   try {
     const config = configOlt(cliente.ciudad);
-    const comandos = comandosEnInterfazPon(cliente.olt_puerto_pon, [
-      `onu ${cliente.olt_onu_id} reboot`,
-    ]);
+    const comandos = comandosEnInterfazPon(
+      cliente.olt_puerto_pon,
+      [`onu ${cliente.olt_onu_id} reboot`],
+      config.enablePassword
+    );
     const salida = await ejecutarComandosOlt(config, comandos);
 
     const errorCli = detectarErrorCli(salida);

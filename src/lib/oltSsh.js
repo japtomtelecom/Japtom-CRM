@@ -97,9 +97,15 @@ export function ejecutarComandosOlt(config, comandos, opciones = {}) {
 // Arma la secuencia completa: entra a modo privilegiado, a configuración,
 // y a la interfaz del puerto PON correcto, antes de los comandos que
 // realmente importan (que se pasan en `comandosInternos`).
-export function comandosEnInterfazPon(puertoPon, comandosInternos) {
+//
+// Después de "enable" esta OLT pide una contraseña aparte para entrar al
+// modo privilegiado (antes de "configure terminal") — sin esa línea, la
+// OLT se queda esperando la contraseña y todos los comandos siguientes se
+// interpretan mal, terminando en errores tipo "% Unknown command.".
+export function comandosEnInterfazPon(puertoPon, comandosInternos, enablePassword) {
   return [
     'enable',
+    ...(enablePassword ? [enablePassword] : []),
     'configure terminal',
     `interface gpon 0/${puertoPon}`,
     ...comandosInternos,

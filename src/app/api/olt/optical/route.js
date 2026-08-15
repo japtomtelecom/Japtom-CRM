@@ -32,10 +32,11 @@ export async function POST(request) {
 
   try {
     const config = configOlt(cliente.ciudad);
-    const comandos = comandosEnInterfazPon(cliente.olt_puerto_pon, [
-      `show onu ${cliente.olt_onu_id} optical_info`,
-      `show onu state ${cliente.olt_onu_id}`,
-    ]);
+    const comandos = comandosEnInterfazPon(
+      cliente.olt_puerto_pon,
+      [`show onu ${cliente.olt_onu_id} optical_info`, `show onu state ${cliente.olt_onu_id}`],
+      config.enablePassword
+    );
     const salida = await ejecutarComandosOlt(config, comandos);
 
     const errorCli = detectarErrorCli(salida);
