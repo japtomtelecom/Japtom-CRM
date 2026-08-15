@@ -2,9 +2,11 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '@/components/AppShell';
+import GraficoTrafico from '@/components/GraficoTrafico';
 import { supabase } from '@/lib/supabaseClient';
 import { formatBs, parsearFechaLocal } from '@/lib/utils';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
+import { usePerfil } from '@/lib/usePerfil';
 
 function StatCard({ label, value, accent }) {
   return (
@@ -19,6 +21,7 @@ function StatCard({ label, value, accent }) {
 
 export default function DashboardPage() {
   const { sucursalActiva, esFija } = useSucursalActiva();
+  const { isAdmin } = usePerfil();
   const [clientes, setClientes] = useState(null);
   const [pagos, setPagos] = useState(null);
   const [ciudad, setCiudad] = useState('todas');
@@ -110,6 +113,16 @@ export default function DashboardPage() {
           <StatCard label="Ingreso histórico (mensualidades)" value={formatBs(kpi.ingreso_historico)} />
           <StatCard label="Ingreso por instalaciones" value={formatBs(kpi.ingreso_instalaciones)} />
           <StatCard label="Ticket promedio" value={formatBs(kpi.ticket_promedio)} />
+        </div>
+      )}
+
+      {isAdmin && ciudad === 'Tarija' && (
+        <div className="mt-6">
+          <GraficoTrafico
+            titulo="📡 Tráfico en tiempo real — MikroTik Tarija"
+            endpoint="/api/mikrotik/trafico-router"
+            body={{ ciudad: 'Tarija' }}
+          />
         </div>
       )}
     </AppShell>

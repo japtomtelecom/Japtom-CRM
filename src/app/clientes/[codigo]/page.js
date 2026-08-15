@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
+import GraficoTrafico from '@/components/GraficoTrafico';
 import { supabase } from '@/lib/supabaseClient';
 import { llamarApiAdmin } from '@/lib/llamarApiAdmin';
 import { usePerfil } from '@/lib/usePerfil';
@@ -671,6 +672,14 @@ export default function FichaClientePage() {
           </div>
 
           {isAdmin && !editando && <PanelMikrotik cliente={cliente} onRecargar={cargar} />}
+
+          {isAdmin && !editando && cliente.pppoe_usuario && (
+            <GraficoTrafico
+              titulo={`📡 Tráfico en tiempo real — ${cliente.nombre}`}
+              endpoint="/api/mikrotik/trafico-cliente"
+              body={{ clienteId: cliente.id }}
+            />
+          )}
 
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Configuración OLT</h2>

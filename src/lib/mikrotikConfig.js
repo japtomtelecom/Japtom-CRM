@@ -7,6 +7,12 @@ export function configMikrotik(ciudad) {
   const user = process.env[`${prefijo}_USER`];
   const password = process.env[`${prefijo}_PASSWORD`];
   const port = Number(process.env[`${prefijo}_PORT`] || 8728);
+  // Nombre de la interfaz "WAN" (la que lleva el tráfico de internet real)
+  // para el panel de "Tráfico en tiempo real" del router completo. No hay
+  // forma de adivinarlo solo (cada sede puede tener su propia VLAN/nombre),
+  // así que se define a mano en Vercel. Si no está configurada, el panel de
+  // tráfico general de esa sede simplemente no se muestra/avisa el motivo.
+  const wanIface = process.env[`${prefijo}_WAN_IFACE`] || null;
 
   if (!host || !user || !password) {
     throw new Error(
@@ -14,5 +20,5 @@ export function configMikrotik(ciudad) {
     );
   }
 
-  return { host, user, password, port };
+  return { host, user, password, port, wanIface };
 }
