@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
+import { llamarApiAdmin } from '@/lib/llamarApiAdmin';
 import { usePerfil } from '@/lib/usePerfil';
 import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
 import { generarContrato } from '@/lib/generarContrato';
@@ -73,15 +74,7 @@ function PanelMikrotik({ cliente, onRecargar }) {
     setResultado(null);
     try {
       const body = endpoint === 'toggle' ? { clienteId: cliente.id, activar } : { clienteId: cliente.id };
-      const { data: sessionData } = await supabase.auth.getSession();
-      const token = sessionData?.session?.access_token;
-      const res = await fetch(`/api/mikrotik/${endpoint}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(body),
-      });
-      const json = await res.json();
-      if (!res.ok) throw new Error(json.error || 'Error desconocido.');
+      const json = await llamarApiAdmin(`/api/mikrotik/${endpoint}`, body);
       setResultado({ ok: true, mensaje: json.mensaje });
       onRecargar?.(true);
     } catch (e) {
@@ -174,16 +167,7 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
   const [resultado, setResultado] = useState(null);
 
   async function llamar(endpoint, body) {
-    const { data: sessionData } = await supabase.auth.getSession();
-    const token = sessionData?.session?.access_token;
-    const res = await fetch(`/api/olt/${endpoint}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-      body: JSON.stringify(body),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json.error || 'Error desconocido.');
-    return json;
+    return llamarApiAdmin(`/api/olt/${endpoint}`, body);
   }
 
   async function verPotencia() {
