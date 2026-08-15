@@ -617,6 +617,18 @@ export default function FichaClientePage() {
                 <p className="text-xs text-brand-400">V</p>
               </div>
             </div>
+
+            {opticoOlt.salidaCruda && (
+              <details className="mt-4 text-xs text-brand-400">
+                <summary className="cursor-pointer select-none">Ver salida cruda de la OLT (para depurar)</summary>
+                <pre
+                  className="mt-2 p-3 rounded whitespace-pre-wrap"
+                  style={{ background: '#F5F7F6', fontSize: 11, maxHeight: 300, overflowY: 'auto' }}
+                >
+                  {opticoOlt.salidaCruda}
+                </pre>
+              </details>
+            )}
             </div>
           </>
         )}

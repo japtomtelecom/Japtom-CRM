@@ -58,6 +58,10 @@ export async function POST(request) {
       ...optico,
       nivelRx: evaluarRx(optico.rxDbm),
       ...estado,
+      // Se incluye siempre (no solo en error) para poder revisar en el panel
+      // qué le respondió realmente la OLT, útil si algún dato no cuadra con
+      // lo que se ve al entrar manualmente por SSH.
+      salidaCruda: salida.slice(-3000),
     });
   } catch (e) {
     return Response.json({ error: 'No se pudo conectar con la OLT: ' + e.message }, { status: 502 });
