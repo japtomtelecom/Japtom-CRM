@@ -14,11 +14,33 @@ export function configMikrotik(ciudad) {
   // tráfico general de esa sede simplemente no se muestra/avisa el motivo.
   const wanIface = process.env[`${prefijo}_WAN_IFACE`] || null;
 
+  // Para sedes con más de una salida de internet (ej. El Alto, que tiene
+  // COMTECO y ENTEL como proveedores separados), en vez de una sola
+  // interfaz WAN se puede definir una lista de "Nombre:interfaz",
+  // separadas por coma. Ej.:
+  //   MIKROTIK_ELALTO_ENLACES=COMTECO:sfp-sfpplus1 COMTECO 1,ENTEL:sfp-sfpplus5. Entel Pampahasi
+  // (los nombres de interfaz pueden tener espacios y puntos, tal cual
+  // aparecen en Winbox — se parte solo por la primera "," de cada bloque
+  // y los ":" para separar nombre de interfaz).
+  const enlacesRaw = process.env[`${prefijo}_ENLACES`] || '';
+  const enlaces = enlacesRaw
+    .split(',')
+    .map((par) => par.trim())
+    .filter(Boolean)
+    .map((par) => {
+      const idx = par.indexOf(':');
+      if (idx === -1) return null;
+      const nombre = par.slice(0, idx).trim();
+      const interfaz = par.slice(idx + 1).trim();
+      return nombre && interfaz ? { nombre, interfaz } : null;
+    })
+    .filter(Boolean);
+
   if (!host || !user || !password) {
     throw new Error(
       `No hay un MikroTik configurado para "${ciudad}". Faltan las variables ${prefijo}_HOST / ${prefijo}_USER / ${prefijo}_PASSWORD en Vercel.`
     );
   }
 
-  return { host, user, password, port, wanIface };
+  return { host, user, password, port, wanIface, enlaces };
 }

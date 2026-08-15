@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import AppShell from '@/components/AppShell';
 import GraficoTrafico from '@/components/GraficoTrafico';
+import PanelTraficoEnlaces from '@/components/PanelTraficoEnlaces';
 import { supabase } from '@/lib/supabaseClient';
 import { formatBs, parsearFechaLocal } from '@/lib/utils';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
@@ -123,6 +124,12 @@ export default function DashboardPage() {
             endpoint="/api/mikrotik/trafico-router"
             body={{ ciudad: 'Tarija' }}
           />
+        </div>
+      )}
+
+      {isAdmin && ciudad === 'El Alto' && (
+        <div className="mt-6">
+          <PanelTraficoEnlaces titulo="📡 Tráfico en tiempo real — MikroTik El Alto (por proveedor)" ciudad="El Alto" />
         </div>
       )}
     </AppShell>
