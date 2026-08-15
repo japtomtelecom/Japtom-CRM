@@ -232,6 +232,107 @@ prueba) por cada sucursal que actives: corta y reactiva su servicio desde el
 CRM y confirma en el MikroTik correspondiente que el cambio se ve reflejado
 correctamente, antes de usarlo con clientes reales.
 
+## Integración con la OLT V-Sol (potencia óptica, reiniciar ONT, activar/desactivar)
+
+Desde la ficha de cada cliente (tarjeta **"Control OLT (V-Sol)"**), un
+**Administrador** puede:
+- **📶 Ver potencia óptica**: consulta en vivo el nivel de señal (Rx/Tx en
+  dBm), voltaje y temperatura de la ONT del cliente, y si está en línea o
+  no — igual que lo verías por consola, pero desde el CRM.
+- **🔁 Reiniciar ONT**: reinicia la ONT en control remoto (tarda 1-2
+  minutos en volver a conectar). Útil para resolver la mayoría de los
+  problemas de conexión sin ir a la calle.
+- **🔒 Desactivar ONU** / **🔓 Activar ONU**: apaga/enciende la ONU
+  directamente en la OLT (independiente del corte por PPPoE del MikroTik
+  — sirve como plan B, o para aislar si un problema es de la ONT o del
+  router).
+
+A diferencia del MikroTik (que tiene una API dedicada), esta OLT solo se
+gestiona por consola SSH — el CRM se conecta y manda los mismos comandos
+que mandarías vos a mano por PuTTY.
+
+### Cómo activarlo (una sola vez)
+
+**1. Base de datos**: en el SQL Editor de Supabase, ejecuta
+`supabase/olt_migracion.sql`.
+
+**2. Habilita SSH en la OLT** (si no lo está ya): en la interfaz web de la
+OLT, **Sistema → SSH → Habilitar SSH**.
+
+**3. Abre el acceso SSH desde internet hacia la OLT.** Igual que hiciste
+para la web de gestión, en el router que tiene la IP pública de esa
+sucursal agrega una regla de NAT dedicada para SSH (usando un puerto
+externo distinto al 22 estándar, para exponer menos el equipo a escaneos
+automáticos). Ejemplo en un MikroTik:
+
+```
+/ip firewall nat add chain=dstnat protocol=tcp dst-address=IP.PUBLICA dst-port=22022 action=dst-nat to-addresses=IP.INTERNA.DE.LA.OLT to-ports=22 comment="OLT-SSH-mgmt"
+```
+
+**4. En Vercel**, ve a tu proyecto → **Settings → Environment Variables** y
+agrega **una tanda por cada sucursal que tenga OLT V-Sol** (sin el prefijo
+`NEXT_PUBLIC_`, para que solo las use el servidor):
+
+```
+OLT_TARIJA_HOST=ip.publica.de.tarija
+OLT_TARIJA_USER=admin
+OLT_TARIJA_PASSWORD=la_contraseña_de_la_olt
+OLT_TARIJA_PORT=22022
+
+OLT_ELALTO_HOST=ip.publica.de.el.alto
+OLT_ELALTO_USER=admin
+OLT_ELALTO_PASSWORD=la_contraseña_de_la_olt
+OLT_ELALTO_PORT=22022
+```
+
+Igual que con el MikroTik, si una sucursal todavía no tiene sus variables
+configuradas, el botón de esa sucursal va a fallar con un mensaje de error
+claro (no un fallo silencioso) hasta que las agregues.
+
+⚠️ La contraseña de administrador de la OLT es muy sensible — controla
+**toda** la red de fibra de esa sucursal. Igual que con el `service_role
+key` de Supabase, nunca la compartas, nunca la pongas en el código, nunca
+la uses con el prefijo `NEXT_PUBLIC_`. Si en algún momento se expone (por
+ejemplo, pegada por error en un chat o mensaje), cámbiala cuanto antes
+desde la interfaz web de la OLT.
+
+**5. Completa los datos de enlace** en cada **cliente** (ficha → Editar →
+tarjeta "Configuración OLT"):
+- **Puerto PON**: el puerto GPON de la OLT donde está conectada su ONT
+  (lo ves en la web de la OLT, en Monitorizar → ONU, columna "Port ID" —
+  ej. "PON1" = puerto 1).
+- **ID de ONU**: el número de ONU dentro de ese puerto (misma pantalla,
+  columna "ONU ID" — ej. "GPON0/1:1" = puerto 1, ONU 1).
+- **N° de serie (SN)**: opcional, solo de referencia.
+
+**6. Redeploy** en Vercel para que tome las variables de entorno nuevas.
+
+### Recomendación antes de usarlo en producción
+
+Prueba primero con **un cliente que no sea crítico** (o uno tuyo de
+prueba): consulta su potencia óptica y, si querés confirmar el reinicio,
+avisale antes de que su internet se va a cortar un par de minutos.
+
+### Notas técnicas (por si el firmware de tu OLT usa otra sintaxis)
+
+Los comandos exactos que usa el CRM (definidos en `src/lib/oltSsh.js`)
+fueron verificados en vivo contra una V-Sol V1600G0-B:
+
+```
+enable
+configure terminal
+interface gpon 0/<puerto>
+show onu <id> optical_info
+show onu state <id>
+onu <id> reboot
+onu <id> activate   /   onu <id> deactivate
+end
+```
+
+Si tu modelo de OLT o versión de firmware responde distinto, avisame con
+el mensaje de error (el CRM incluye la respuesta cruda de la OLT cuando
+algo falla) y ajustamos los comandos en `src/lib/oltSsh.js`.
+
 ## Ticket de falla / soporte técnico
 
 En la ficha de cada cliente hay un botón **🎫 Ticket de falla**: escribes el

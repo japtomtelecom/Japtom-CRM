@@ -161,6 +161,163 @@ function PanelMikrotik({ cliente, onRecargar }) {
   );
 }
 
+function PanelOlt({ cliente, onRecargar }) {
+  const [accionEnCurso, setAccionEnCurso] = useState(null);
+  const [resultado, setResultado] = useState(null);
+  const [optico, setOptico] = useState(null);
+
+  async function llamar(endpoint, body) {
+    const { data: sessionData } = await supabase.auth.getSession();
+    const token = sessionData?.session?.access_token;
+    const res = await fetch(`/api/olt/${endpoint}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
+      body: JSON.stringify(body),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error || 'Error desconocido.');
+    return json;
+  }
+
+  async function verPotencia() {
+    setAccionEnCurso('potencia');
+    setResultado(null);
+    setOptico(null);
+    try {
+      const json = await llamar('optical', { clienteId: cliente.id });
+      setOptico(json);
+    } catch (e) {
+      setResultado({ ok: false, error: e.message });
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }
+
+  async function reiniciar() {
+    setAccionEnCurso('reiniciar');
+    setResultado(null);
+    try {
+      const json = await llamar('reboot', { clienteId: cliente.id });
+      setResultado({ ok: true, mensaje: json.mensaje });
+    } catch (e) {
+      setResultado({ ok: false, error: e.message });
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }
+
+  async function toggle(activar) {
+    setAccionEnCurso(activar ? 'reactivar' : 'bloquear');
+    setResultado(null);
+    try {
+      const json = await llamar('toggle', { clienteId: cliente.id, activar });
+      setResultado({ ok: true, mensaje: json.mensaje });
+      onRecargar?.(true);
+    } catch (e) {
+      setResultado({ ok: false, error: e.message });
+    } finally {
+      setAccionEnCurso(null);
+    }
+  }
+
+  const colorNivel = {
+    bueno: '#085041',
+    marginal: '#8a6d00',
+    critico: '#791F1F',
+    alto: '#8a6d00',
+    desconocido: '#666',
+  };
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-brand-700 mb-3">Control OLT (V-Sol)</h2>
+
+      {(!cliente.olt_puerto_pon || !cliente.olt_onu_id) && (
+        <p className="text-xs text-amber-600 mb-3">
+          Este cliente no tiene "Puerto PON" e "ID de ONU" configurados. Completalos en "Editar" antes de usar estas acciones.
+        </p>
+      )}
+
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={verPotencia}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm col-span-2"
+        >
+          {accionEnCurso === 'potencia' ? 'Consultando…' : '📶 Ver potencia óptica'}
+        </button>
+        <button
+          onClick={() => toggle(false)}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm"
+          style={{ color: '#791F1F' }}
+        >
+          {accionEnCurso === 'bloquear' ? 'Desactivando…' : '🔒 Desactivar ONU'}
+        </button>
+        <button
+          onClick={() => toggle(true)}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm"
+          style={{ color: '#085041' }}
+        >
+          {accionEnCurso === 'reactivar' ? 'Activando…' : '🔓 Activar ONU'}
+        </button>
+        <button
+          onClick={reiniciar}
+          disabled={accionEnCurso !== null}
+          className="btn-secondary text-sm col-span-2"
+        >
+          {accionEnCurso === 'reiniciar' ? 'Reiniciando…' : '🔁 Reiniciar ONT'}
+        </button>
+      </div>
+
+      {optico && (
+        <div className="mt-3 text-sm space-y-1" style={{ padding: '10px 12px', borderRadius: 6, background: '#F5F7F6' }}>
+          <div className="flex justify-between">
+            <span className="text-brand-400">Estado</span>
+            <span className="font-medium">{optico.online ? '🟢 En línea' : optico.encontrado ? '🔴 Desconectada' : '—'}</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-brand-400">Rx (recibida en OLT)</span>
+            <span className="font-medium" style={{ color: colorNivel[optico.nivelRx] || '#666' }}>
+              {optico.rxDbm ?? '—'} dBm ({optico.nivelRx})
+            </span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-brand-400">Tx (ONU)</span>
+            <span className="font-medium">{optico.txDbm ?? '—'} dBm</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-brand-400">Temperatura</span>
+            <span className="font-medium">{optico.temperaturaC ?? '—'} °C</span>
+          </div>
+          <div className="flex justify-between">
+            <span className="text-brand-400">Voltaje</span>
+            <span className="font-medium">{optico.voltajeV ?? '—'} V</span>
+          </div>
+        </div>
+      )}
+
+      {resultado && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 12px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            background: resultado.ok ? '#E1F5EE' : '#FCEBEB',
+            color: resultado.ok ? '#085041' : '#791F1F',
+          }}
+        >
+          {resultado.ok ? '✅ ' : '⚠️ '}
+          {resultado.ok ? resultado.mensaje : resultado.error}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FichaClientePage() {
   const params = useParams();
   const { isAdmin } = usePerfil();
@@ -231,6 +388,9 @@ async function cargar(silencioso = false) {
         pppoe_usuario: form.pppoe_usuario,
         pppoe_password: form.pppoe_password,
         ip_asignada: form.ip_asignada,
+        olt_puerto_pon: form.olt_puerto_pon ? Number(form.olt_puerto_pon) : null,
+        olt_onu_id: form.olt_onu_id ? Number(form.olt_onu_id) : null,
+        olt_sn: form.olt_sn,
       })
       .eq('id', cliente.id);
     setGuardando(false);
@@ -489,6 +649,44 @@ async function cargar(silencioso = false) {
           </div>
 
           {isAdmin && !editando && <PanelMikrotik cliente={cliente} onRecargar={cargar} />}
+
+          <div className="card p-5">
+            <h2 className="font-semibold text-brand-700 mb-3">Configuración OLT</h2>
+
+            {!editando ? (
+              <div className="space-y-3 text-sm">
+                <div>
+                  <span className="text-brand-400">Puerto PON</span>
+                  <p className="font-mono font-medium">{cliente.olt_puerto_pon ?? '—'}</p>
+                </div>
+                <div>
+                  <span className="text-brand-400">ID de ONU</span>
+                  <p className="font-mono font-medium">{cliente.olt_onu_id ?? '—'}</p>
+                </div>
+                <div>
+                  <span className="text-brand-400">N° de serie (SN)</span>
+                  <p className="font-mono font-medium">{cliente.olt_sn || '—'}</p>
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div>
+                  <label className="label">Puerto PON</label>
+                  <input type="number" min="1" className="input" value={form.olt_puerto_pon ?? ''} onChange={(e) => setForm({ ...form, olt_puerto_pon: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">ID de ONU</label>
+                  <input type="number" min="1" className="input" value={form.olt_onu_id ?? ''} onChange={(e) => setForm({ ...form, olt_onu_id: e.target.value })} />
+                </div>
+                <div>
+                  <label className="label">N° de serie (SN)</label>
+                  <input className="input" value={form.olt_sn || ''} onChange={(e) => setForm({ ...form, olt_sn: e.target.value })} />
+                </div>
+              </div>
+            )}
+          </div>
+
+          {isAdmin && !editando && <PanelOlt cliente={cliente} onRecargar={cargar} />}
 
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
