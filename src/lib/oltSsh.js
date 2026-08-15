@@ -17,6 +17,17 @@ import { Client } from 'ssh2';
 // "expect" para automatizar consolas de switches/routers.
 // ============================================================
 
+// Quita secuencias de escape ANSI (códigos de control de terminal, como
+// "mover el cursor N columnas a la derecha" o colores). Esta OLT las usa
+// para alinear columnas en algunas tablas (ej. "show onu state"): un
+// programa de terminal como PuTTY las interpreta y muestra todo prolijo en
+// una sola línea, pero si no se sacan del texto crudo, una palabra como
+// "working" queda pegada al código de control (algo así como
+// "[41Cworking") y ya no coincide con lo que buscan los parsers de abajo.
+function limpiarAnsi(texto) {
+  return texto.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
+}
+
 export function ejecutarComandosOlt(config, comandos, opciones = {}) {
   const settleMs = opciones.settleMs ?? 700;
   const timeoutMs = opciones.timeoutMs ?? 20000;
@@ -58,7 +69,7 @@ export function ejecutarComandosOlt(config, comandos, opciones = {}) {
         if (err) return finalizar(reject, err);
 
         stream.on('data', (data) => {
-          salida += data.toString('utf8');
+          salida += limpiarAnsi(data.toString('utf8'));
           if (settleTimer) clearTimeout(settleTimer);
           settleTimer = setTimeout(() => enviarSiguiente(stream), settleMs);
         });
