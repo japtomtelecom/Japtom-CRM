@@ -36,7 +36,7 @@ export default function DashboardPage() {
     async function load() {
       const [{ data: c, error: e1 }, { data: p, error: e2 }] = await Promise.all([
         supabase.from('v_clientes_estado').select('*'),
-        supabase.from('pagos').select('monto, fecha_pago, tipo, clientes(ciudad)'),
+        supabase.from('pagos').select('monto, fecha_pago, tipo_pago, clientes(ciudad)'),
       ]);
       if (e1 || e2) setError((e1 || e2).message);
       setClientes(c || []);
@@ -56,8 +56,8 @@ export default function DashboardPage() {
       return f.getFullYear() === hoy.getFullYear() && f.getMonth() === hoy.getMonth();
     };
 
-    const pagosMensualidad = pagosF.filter((p) => p.tipo !== 'Instalacion');
-    const pagosInstalacion = pagosF.filter((p) => p.tipo === 'Instalacion');
+    const pagosMensualidad = pagosF.filter((p) => p.tipo_pago !== 'Costo de instalación');
+    const pagosInstalacion = pagosF.filter((p) => p.tipo_pago === 'Costo de instalación');
 
     const cobradoMes = pagosMensualidad
       .filter((p) => esMesActual(p.fecha_pago))

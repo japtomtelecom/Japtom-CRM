@@ -239,9 +239,18 @@ export async function generarContrato(cliente, empresaNombre = 'JapTom Telecom',
   const fechaTexto = ahora.toLocaleDateString('es-BO', { day: 'numeric', month: 'long', year: 'numeric' });
   doc.setFont('helvetica', 'normal');
   y = parrafo(doc, `${ciudadFirma}, ${fechaTexto}`, margenX, y, anchoUtil);
-  y += 20;
+  y += 26;
 
   y = verificarSalto(doc, y, 260);
+
+  // Firma escaneada del representante de JAPTOM-TELECOM, si está disponible
+  try {
+    const firmaBase64 = await cargarImagenBase64('/firma.png');
+    const firmaAncho = 28;
+    const firmaAlto = firmaAncho * (315 / 327); // proporción real de la imagen recortada
+    doc.addImage(firmaBase64, 'PNG', margenX + 6, y - firmaAlto - 1, firmaAncho, firmaAlto);
+  } catch (e) {}
+
   doc.setDrawColor(120);
   doc.line(margenX, y, 90, y);
   doc.line(120, y, 190, y);

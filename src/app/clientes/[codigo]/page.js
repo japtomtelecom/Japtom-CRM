@@ -66,6 +66,47 @@ function ModalBoleta({ cliente, empresaNombre, onClose }) {
   );
 }
 
+function ModalContrato({ cliente, empresaNombre, onClose }) {
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [generando, setGenerando] = useState(false);
+
+  async function generar() {
+    setGenerando(true);
+    await generarContrato(cliente, empresaNombre, fecha);
+    setGenerando(false);
+    onClose();
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={onClose}
+    >
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 380, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>Generar contrato</h3>
+        <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{cliente.nombre} · {cliente.codigo}</p>
+
+        <label className="label" style={{ marginTop: 12 }}>Fecha de firma</label>
+        <input
+          type="date"
+          className="input"
+          value={fecha}
+          onChange={(e) => setFecha(e.target.value)}
+        />
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={generar} disabled={generando} className="btn-primary">
+            {generando ? 'Generando…' : 'Generar PDF'}
+          </button>
+          <button onClick={onClose} className="btn-secondary">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PanelMikrotik({ cliente, onRecargar }) {
   const [accionEnCurso, setAccionEnCurso] = useState(null);
   const [resultado, setResultado] = useState(null);
@@ -296,7 +337,7 @@ export default function FichaClientePage() {
   const [msg, setMsg] = useState('');
   const [verPassword, setVerPassword] = useState(false);
   const [mostrarBoleta, setMostrarBoleta] = useState(false);
-  const [generandoContrato, setGenerandoContrato] = useState(false);
+  const [mostrarContrato, setMostrarContrato] = useState(false);
   const [opticoOlt, setOpticoOlt] = useState(null);
   const [planes, setPlanes] = useState([]);
 
@@ -390,12 +431,6 @@ export default function FichaClientePage() {
     cargar();
   }
 
-  async function handleGenerarContrato() {
-    setGenerandoContrato(true);
-    await generarContrato(cliente, config.empresa_nombre);
-    setGenerandoContrato(false);
-  }
-
   if (loading) {
     return (
       <AppShell>
@@ -434,8 +469,8 @@ export default function FichaClientePage() {
               📲 WhatsApp
             </a>
           )}
-          <button onClick={handleGenerarContrato} disabled={generandoContrato} className="btn-secondary">
-            {generandoContrato ? 'Generando…' : '📄 Generar contrato'}
+          <button onClick={() => setMostrarContrato(true)} className="btn-secondary">
+            📄 Generar contrato
           </button>
           <button onClick={() => setMostrarBoleta(true)} className="btn-secondary">
             🧾 Boleta de instalación
@@ -781,6 +816,9 @@ export default function FichaClientePage() {
 
       {mostrarBoleta && (
         <ModalBoleta cliente={cliente} empresaNombre={config.empresa_nombre} onClose={() => setMostrarBoleta(false)} />
+      )}
+      {mostrarContrato && (
+        <ModalContrato cliente={cliente} empresaNombre={config.empresa_nombre} onClose={() => setMostrarContrato(false)} />
       )}
     </AppShell>
   );
