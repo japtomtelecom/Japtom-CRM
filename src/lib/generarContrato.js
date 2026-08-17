@@ -246,7 +246,7 @@ export async function generarContrato(cliente, empresaNombre = 'JapTom Telecom',
   // Firma escaneada del representante de JAPTOM-TELECOM, si está disponible
   try {
     const firmaBase64 = await cargarImagenBase64('/firma.png');
-    const firmaAncho = 28;
+    const firmaAncho = 36.4; // 28 + 30%
     const firmaAlto = firmaAncho * (315 / 327); // proporción real de la imagen recortada
     doc.addImage(firmaBase64, 'PNG', margenX + 6, y - firmaAlto - 1, firmaAncho, firmaAlto);
   } catch (e) {}
