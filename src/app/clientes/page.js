@@ -305,6 +305,13 @@ export default function ClientesPage() {
                         📲
                       </a>
                     )}
+                    <Link
+                      href={`/pagos?cliente_id=${c.id}`}
+                      title="Registrar pago para este cliente"
+                      className="text-brand-600 hover:underline mr-3"
+                    >
+                      💵 Registrar pago
+                    </Link>
                     <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline mr-3">
                       Ver ficha →
                     </Link>
