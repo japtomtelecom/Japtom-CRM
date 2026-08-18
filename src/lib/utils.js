@@ -39,6 +39,15 @@ export function construirMensaje(cliente, plantillas, empresaNombre) {
     .replaceAll('{dia_pago}', cliente.dia_pago ?? '')
     .replaceAll('{empresa}', empresaNombre || 'Japtom-Telecom');
 }
+export function construirMensajeRecordatorio(cliente, plantillas, empresaNombre) {
+  return (plantillas.mensaje_recordatorio || '')
+    .replaceAll('{nombre}', cliente.nombre)
+    .replaceAll('{codigo}', cliente.codigo)
+    .replaceAll('{precio}', cliente.precio || '')
+    .replaceAll('{dia_pago}', cliente.dia_pago ?? '')
+    .replaceAll('{plan}', cliente.plan || 'de Internet')
+    .replaceAll('{empresa}', empresaNombre || 'Japtom-Telecom');
+}
 export function construirMensajeCorte(cliente, plantillas, empresaNombre) {
   return (plantillas.mensaje_corte || '')
     .replaceAll('{nombre}', cliente.nombre)

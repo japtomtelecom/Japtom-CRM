@@ -6,7 +6,7 @@ import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { usePerfil } from '@/lib/usePerfil';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
-import { formatBs, linkWhatsApp, construirMensaje, construirMensajeCorte } from '@/lib/utils';
+import { formatBs, linkWhatsApp, construirMensaje, construirMensajeCorte, construirMensajeRecordatorio } from '@/lib/utils';
 import { exportarExcel } from '@/lib/exportExcel';
 
 const STATUS_STYLE = {
@@ -272,6 +272,8 @@ export default function ClientesPage() {
               const wa = linkWhatsApp(c.telefono, mensaje);
               const mensajeCorte = construirMensajeCorte(c, config, config.empresa_nombre);
               const waCorte = linkWhatsApp(c.telefono, mensajeCorte);
+              const mensajeRecordatorio = construirMensajeRecordatorio(c, config, config.empresa_nombre);
+              const waRecordatorio = linkWhatsApp(c.telefono, mensajeRecordatorio);
               return (
                 <tr key={c.id} className="border-b border-brand-50 hover:bg-brand-50/60">
                   <td className="p-3 font-mono text-xs">{c.codigo}</td>
@@ -305,6 +307,18 @@ export default function ClientesPage() {
                         className="mr-3"
                       >
                         📲
+                      </a>
+                    )}
+                    {waRecordatorio && (
+                      <a
+                        href={waRecordatorio}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => marcarMensajeEnviado(c.id)}
+                        title="Enviar recordatorio de pago (mensaje fijo, sin importar el estado)"
+                        className="mr-3"
+                      >
+                        🔔
                       </a>
                     )}
                     {waCorte && (
