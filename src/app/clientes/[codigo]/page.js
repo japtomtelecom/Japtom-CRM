@@ -388,6 +388,21 @@ function PanelMikrotik({ cliente, onRecargar }) {
         >
           {accionEnCurso === 'cerrar' ? 'Cerrando…' : '⏏️ Cerrar sesión activa (forzar reinicio)'}
         </button>
+        <button
+          onClick={() =>
+            ejecutar(
+              'borrar',
+              'borrar-usuario',
+              undefined,
+              `¿Confirmas BORRAR el usuario PPPoE "${cliente.pppoe_usuario}" de ${cliente.nombre} del MikroTik? Esto corta su servicio de inmediato. No se puede deshacer (aunque podés volver a crearlo después con "Crear usuario"). Esto NO borra la ficha del cliente en el CRM.`
+            )
+          }
+          disabled={accionEnCurso !== null || !cliente.pppoe_usuario}
+          className="btn-secondary text-sm col-span-2"
+          style={{ color: '#791F1F' }}
+        >
+          {accionEnCurso === 'borrar' ? 'Borrando…' : '🗑️ Borrar usuario del MikroTik'}
+        </button>
       </div>
 {resultado && (
         <div
