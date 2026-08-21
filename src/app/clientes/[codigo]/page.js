@@ -8,6 +8,7 @@ import GraficoTrafico from '@/components/GraficoTrafico';
 import { supabase } from '@/lib/supabaseClient';
 import { llamarApiAdmin } from '@/lib/llamarApiAdmin';
 import { usePerfil } from '@/lib/usePerfil';
+import { useAuth } from '@/lib/useAuth';
 import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
 import { generarContrato } from '@/lib/generarContrato';
 import { generarBoletaInstalacion } from '@/lib/generarBoleta';
@@ -103,6 +104,171 @@ function ModalContrato({ cliente, empresaNombre, onClose }) {
           </button>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PanelApuntes({ clienteId, userEmail }) {
+  const [notas, setNotas] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [nuevoTexto, setNuevoTexto] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [editandoId, setEditandoId] = useState(null);
+  const [textoEditado, setTextoEditado] = useState('');
+  const [guardandoEdicion, setGuardandoEdicion] = useState(false);
+  const [eliminandoId, setEliminandoId] = useState(null);
+  const [error, setError] = useState('');
+
+  async function cargarNotas() {
+    setCargando(true);
+    const { data, error: err } = await supabase
+      .from('notas_cliente')
+      .select('*')
+      .eq('cliente_id', clienteId)
+      .order('creado_en', { ascending: false });
+    if (err) setError('No se pudieron cargar los apuntes: ' + err.message);
+    setNotas(data || []);
+    setCargando(false);
+  }
+
+  useEffect(() => {
+    if (clienteId) cargarNotas();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteId]);
+
+  async function agregar() {
+    if (!nuevoTexto.trim()) return;
+    setGuardando(true);
+    setError('');
+    const { error: err } = await supabase
+      .from('notas_cliente')
+      .insert({ cliente_id: clienteId, texto: nuevoTexto.trim(), creado_por: userEmail || null });
+    setGuardando(false);
+    if (err) {
+      setError('Error al guardar el apunte: ' + err.message);
+      return;
+    }
+    setNuevoTexto('');
+    cargarNotas();
+  }
+
+  function iniciarEdicion(nota) {
+    setEditandoId(nota.id);
+    setTextoEditado(nota.texto);
+  }
+
+  function cancelarEdicion() {
+    setEditandoId(null);
+    setTextoEditado('');
+  }
+
+  async function guardarEdicion(id) {
+    if (!textoEditado.trim()) return;
+    setGuardandoEdicion(true);
+    setError('');
+    const { error: err } = await supabase
+      .from('notas_cliente')
+      .update({ texto: textoEditado.trim(), editado_en: new Date().toISOString() })
+      .eq('id', id);
+    setGuardandoEdicion(false);
+    if (err) {
+      setError('Error al editar el apunte: ' + err.message);
+      return;
+    }
+    setEditandoId(null);
+    setTextoEditado('');
+    cargarNotas();
+  }
+
+  async function eliminar(id) {
+    if (!confirm('¿Eliminar este apunte? No se puede deshacer.')) return;
+    setEliminandoId(id);
+    setError('');
+    const { error: err } = await supabase.from('notas_cliente').delete().eq('id', id);
+    setEliminandoId(null);
+    if (err) {
+      setError('Error al eliminar el apunte: ' + err.message);
+      return;
+    }
+    cargarNotas();
+  }
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-brand-700 mb-3">📝 Apuntes del cliente</h2>
+      <p className="text-xs text-brand-400 mb-3">
+        Notas internas del equipo — revísalas antes de escribirle al cliente (ej. por WhatsApp).
+      </p>
+
+      <div className="flex gap-2 mb-4">
+        <textarea
+          className="input flex-1"
+          rows={2}
+          placeholder="Agregar un apunte nuevo…"
+          value={nuevoTexto}
+          onChange={(e) => setNuevoTexto(e.target.value)}
+        />
+        <button onClick={agregar} disabled={guardando || !nuevoTexto.trim()} className="btn-primary" style={{ whiteSpace: 'nowrap', height: 'fit-content' }}>
+          {guardando ? 'Guardando…' : 'Agregar'}
+        </button>
+      </div>
+
+      {error && <p className="text-sm mb-3" style={{ color: '#791F1F' }}>{error}</p>}
+
+      {cargando ? (
+        <p className="text-sm text-brand-400">Cargando apuntes…</p>
+      ) : notas.length === 0 ? (
+        <p className="text-sm text-brand-400">Sin apuntes registrados todavía.</p>
+      ) : (
+        <ul className="space-y-3 text-sm">
+          {notas.map((n) => (
+            <li key={n.id} className="border-b border-brand-50 pb-3">
+              {editandoId === n.id ? (
+                <div>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    value={textoEditado}
+                    onChange={(e) => setTextoEditado(e.target.value)}
+                  />
+                  <div className="flex gap-2 mt-2">
+                    <button onClick={() => guardarEdicion(n.id)} disabled={guardandoEdicion || !textoEditado.trim()} className="btn-primary text-xs">
+                      {guardandoEdicion ? 'Guardando…' : 'Guardar'}
+                    </button>
+                    <button onClick={cancelarEdicion} className="btn-secondary text-xs">
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <p style={{ whiteSpace: 'pre-wrap' }}>{n.texto}</p>
+                  <div className="flex items-center justify-between mt-1">
+                    <span className="text-xs text-brand-400">
+                      {new Date(n.creado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
+                      {n.creado_por ? ' · ' + n.creado_por : ''}
+                      {n.editado_en ? ' · editado' : ''}
+                    </span>
+                    <span className="flex gap-2">
+                      <button onClick={() => iniciarEdicion(n)} className="text-brand-500 text-xs hover:underline">
+                        Editar
+                      </button>
+                      <button
+                        onClick={() => eliminar(n.id)}
+                        disabled={eliminandoId === n.id}
+                        className="text-xs hover:underline"
+                        style={{ color: '#791F1F' }}
+                      >
+                        {eliminandoId === n.id ? 'Eliminando…' : 'Eliminar'}
+                      </button>
+                    </span>
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
     </div>
   );
 }
@@ -325,6 +491,7 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
 export default function FichaClientePage() {
   const params = useParams();
   const { isAdmin } = usePerfil();
+  const { user } = useAuth();
   const codigo = params.codigo;
 
   const [cliente, setCliente] = useState(null);
@@ -485,6 +652,8 @@ export default function FichaClientePage() {
 
       <div className="grid md:grid-cols-3 gap-6 items-start">
         <div className="md:col-span-2 space-y-6">
+        <PanelApuntes clienteId={cliente.id} userEmail={user?.email} />
+
         <div className="card p-5">
           <h2 className="font-semibold text-brand-700 mb-3">Datos del cliente</h2>
 
