@@ -96,7 +96,7 @@ export default function NuevoClientePage() {
           </div>
           <div>
             <label className="label">Nombre *</label>
-            <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+            <input className="input" value={form.nombre} onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })} />
           </div>
           <div>
             <label className="label">Ciudad</label>
@@ -115,7 +115,7 @@ export default function NuevoClientePage() {
           </div>
           <div>
             <label className="label">CI (Cédula de identidad)</label>
-            <input className="input" value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value })} placeholder="Ej: 3321656 LP" />
+            <input className="input" value={form.ci} onChange={(e) => setForm({ ...form, ci: e.target.value.toUpperCase() })} placeholder="Ej: 3321656 LP" />
           </div>
           <div>
             <label className="label">Costo de instalación (Bs)</label>
@@ -157,14 +157,14 @@ export default function NuevoClientePage() {
           </div>
           <div className="col-span-2">
             <label className="label">Dirección</label>
-            <input className="input" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
+            <input className="input" value={form.direccion} onChange={(e) => setForm({ ...form, direccion: e.target.value.toUpperCase() })} />
           </div>
           <div>
             <label className="label">Usuario PPPoE (opcional)</label>
             <input
               className="input"
               value={form.pppoe_usuario}
-              onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value })}
+              onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value.toLowerCase() })}
               placeholder="Igual que en el MikroTik"
             />
           </div>
@@ -173,7 +173,7 @@ export default function NuevoClientePage() {
             <input
               className="input"
               value={form.pppoe_password}
-              onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })}
+              onChange={(e) => setForm({ ...form, pppoe_password: e.target.value.toLowerCase() })}
               placeholder="Solo se usa para crearlo en el MikroTik"
             />
           </div>

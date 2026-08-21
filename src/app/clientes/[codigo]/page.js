@@ -801,7 +801,7 @@ export default function FichaClientePage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="label">Nombre</label>
-                <input className="input" value={form.nombre || ''} onChange={(e) => setForm({ ...form, nombre: e.target.value })} />
+                <input className="input" value={form.nombre || ''} onChange={(e) => setForm({ ...form, nombre: e.target.value.toUpperCase() })} />
               </div>
               <div>
                 <label className="label">Teléfono</label>
@@ -846,11 +846,11 @@ export default function FichaClientePage() {
               </div>
               <div className="col-span-2">
                 <label className="label">Dirección</label>
-                <input className="input" value={form.direccion || ''} onChange={(e) => setForm({ ...form, direccion: e.target.value })} />
+                <input className="input" value={form.direccion || ''} onChange={(e) => setForm({ ...form, direccion: e.target.value.toUpperCase() })} />
               </div>
               <div>
                 <label className="label">CI</label>
-                <input className="input" value={form.ci || ''} onChange={(e) => setForm({ ...form, ci: e.target.value })} />
+                <input className="input" value={form.ci || ''} onChange={(e) => setForm({ ...form, ci: e.target.value.toUpperCase() })} />
               </div>
               <div>
                 <label className="label">Costo de instalación (Bs)</label>
@@ -993,11 +993,11 @@ export default function FichaClientePage() {
               <div className="space-y-3">
                 <div>
                   <label className="label">Usuario PPPoE</label>
-                  <input className="input" value={form.pppoe_usuario || ''} onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value })} />
+                  <input className="input" value={form.pppoe_usuario || ''} onChange={(e) => setForm({ ...form, pppoe_usuario: e.target.value.toLowerCase() })} />
                 </div>
                 <div>
                   <label className="label">Contraseña PPPoE</label>
-                  <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value })} />
+                  <input className="input" value={form.pppoe_password || ''} onChange={(e) => setForm({ ...form, pppoe_password: e.target.value.toLowerCase() })} />
                 </div>
                 <div>
                   <label className="label">IP asignada</label>
