@@ -277,19 +277,24 @@ function PanelMikrotik({ cliente, onRecargar }) {
   const [accionEnCurso, setAccionEnCurso] = useState(null);
   const [resultado, setResultado] = useState(null);
 
-  async function ejecutar(accion, endpoint, activar) {
+  async function ejecutar(accion, endpoint, activar, confirmacion) {
+    if (confirmacion && !confirm(confirmacion)) return;
     setAccionEnCurso(accion);
     setResultado(null);
     try {
       const body = endpoint === 'toggle' ? { clienteId: cliente.id, activar } : { clienteId: cliente.id };
       const json = await llamarApiAdmin(`/api/mikrotik/${endpoint}`, body);
       setResultado({ ok: true, mensaje: json.mensaje });
-      onRecargar?.(true);
     } catch (e) {
       setResultado({ ok: false, error: e.message });
     } finally {
       setAccionEnCurso(null);
     }
+  }
+
+  function aceptarResultado() {
+    setResultado(null);
+    onRecargar?.(true);
   }
 
   return (
@@ -304,21 +309,21 @@ function PanelMikrotik({ cliente, onRecargar }) {
 
       <div className="grid grid-cols-2 gap-2">
         <button
-          onClick={() => ejecutar('crear', 'crear-usuario')}
+          onClick={() => ejecutar('crear', 'crear-usuario', undefined, `¿Confirmas crear el usuario PPPoE en MikroTik para ${cliente.nombre}?`)}
           disabled={accionEnCurso !== null}
           className="btn-secondary text-sm"
         >
           {accionEnCurso === 'crear' ? 'Creando…' : '➕ Crear usuario'}
         </button>
         <button
-          onClick={() => ejecutar('plan', 'cambiar-plan')}
+          onClick={() => ejecutar('plan', 'cambiar-plan', undefined, `¿Confirmas sincronizar el plan de ${cliente.nombre} en MikroTik?`)}
           disabled={accionEnCurso !== null}
           className="btn-secondary text-sm"
         >
           {accionEnCurso === 'plan' ? 'Aplicando…' : '🔄 Sincronizar plan'}
         </button>
         <button
-          onClick={() => ejecutar('bloquear', 'toggle', false)}
+          onClick={() => ejecutar('bloquear', 'toggle', false, `¿Confirmas BLOQUEAR el servicio de ${cliente.nombre}? Se cortará su acceso a Internet.`)}
           disabled={accionEnCurso !== null}
           className="btn-secondary text-sm"
           style={{ color: '#791F1F' }}
@@ -326,7 +331,7 @@ function PanelMikrotik({ cliente, onRecargar }) {
           {accionEnCurso === 'bloquear' ? 'Bloqueando…' : '🔒 Bloquear servicio'}
         </button>
         <button
-          onClick={() => ejecutar('reactivar', 'toggle', true)}
+          onClick={() => ejecutar('reactivar', 'toggle', true, `¿Confirmas reactivar el servicio de ${cliente.nombre}?`)}
           disabled={accionEnCurso !== null}
           className="btn-secondary text-sm"
           style={{ color: '#085041' }}
@@ -334,7 +339,7 @@ function PanelMikrotik({ cliente, onRecargar }) {
           {accionEnCurso === 'reactivar' ? 'Reactivando…' : '🔓 Reactivar servicio'}
         </button>
         <button
-          onClick={() => ejecutar('cerrar', 'cerrar-sesion')}
+          onClick={() => ejecutar('cerrar', 'cerrar-sesion', undefined, `¿Confirmas cerrar la sesión activa de ${cliente.nombre}? Esto forzará un reinicio de su conexión.`)}
           disabled={accionEnCurso !== null}
           className="btn-secondary text-sm col-span-2"
         >
@@ -353,11 +358,16 @@ function PanelMikrotik({ cliente, onRecargar }) {
             color: resultado.ok ? '#085041' : '#791F1F',
           }}
         >
-          {resultado.ok ? '✅ ' : '⚠️ '}
-          {resultado.ok ? resultado.mensaje : resultado.error}
+          <p style={{ margin: 0 }}>
+            {resultado.ok ? '✅ ' : '⚠️ '}
+            {resultado.ok ? resultado.mensaje : resultado.error}
+          </p>
+          <button onClick={aceptarResultado} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+            Aceptar
+          </button>
         </div>
       )}
-   
+
     </div>
   );
 }
@@ -379,6 +389,7 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
   }
 
   async function verPotencia() {
+    if (!confirm(`¿Confirmas consultar la potencia óptica de ${cliente.nombre} en la OLT?`)) return;
     setAccionEnCurso('potencia');
     setResultado(null);
     setOptico(null);
@@ -393,6 +404,7 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
   }
 
   async function reiniciar() {
+    if (!confirm(`¿Confirmas reiniciar el ONT de ${cliente.nombre}? La conexión se cortará unos segundos.`)) return;
     setAccionEnCurso('reiniciar');
     setResultado(null);
     try {
@@ -406,17 +418,30 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
   }
 
   async function toggle(activar) {
+    const confirmacion = activar
+      ? `¿Confirmas ACTIVAR la ONU de ${cliente.nombre}?`
+      : `¿Confirmas DESACTIVAR la ONU de ${cliente.nombre}? Se cortará su acceso a Internet.`;
+    if (!confirm(confirmacion)) return;
     setAccionEnCurso(activar ? 'reactivar' : 'bloquear');
     setResultado(null);
     try {
       const json = await llamar('toggle', { clienteId: cliente.id, activar });
       setResultado({ ok: true, mensaje: json.mensaje });
-      onRecargar?.(true);
     } catch (e) {
       setResultado({ ok: false, error: e.message });
     } finally {
       setAccionEnCurso(null);
     }
+  }
+
+  function aceptarResultado() {
+    setResultado(null);
+    onRecargar?.(true);
+  }
+
+  function aceptarOptico() {
+    setOptico(null);
+    onRecargar?.(true);
   }
 
   return (
@@ -463,9 +488,14 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
       </div>
 
       {optico && (
-        <p className="mt-3 text-xs text-brand-400">
-          👆 Resultado mostrado arriba, en "Potencia óptica".
-        </p>
+        <div className="mt-3">
+          <p className="text-xs text-brand-400">
+            👆 Resultado mostrado arriba, en "Potencia óptica".
+          </p>
+          <button onClick={aceptarOptico} className="btn-primary text-xs mt-2">
+            Aceptar
+          </button>
+        </div>
       )}
 
       {resultado && (
@@ -480,8 +510,13 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
             color: resultado.ok ? '#085041' : '#791F1F',
           }}
         >
-          {resultado.ok ? '✅ ' : '⚠️ '}
-          {resultado.ok ? resultado.mensaje : resultado.error}
+          <p style={{ margin: 0 }}>
+            {resultado.ok ? '✅ ' : '⚠️ '}
+            {resultado.ok ? resultado.mensaje : resultado.error}
+          </p>
+          <button onClick={aceptarResultado} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+            Aceptar
+          </button>
         </div>
       )}
     </div>
