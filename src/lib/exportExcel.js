@@ -8,14 +8,17 @@ const ETIQUETA_STATUS = {
   vencido: 'Vencido (+5 días)',
 };
 
-const CIUDADES = ['El Alto', 'Tarija'];
+export const CIUDADES = ['El Alto', 'Tarija'];
 
 function nombreMesCorto(periodo) {
   const d = new Date(periodo.slice(0, 10) + 'T00:00:00');
   return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
 }
 
-function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTodo }) {
+// Exportado para reutilizarlo desde el respaldo automático semanal
+// (src/app/api/cron/respaldo-semanal/route.js) — misma lógica que el botón
+// manual "⬇️ Excel" de Configuración, sin duplicar código.
+export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTodo }) {
   const clientes = clientesTodos.filter((c) => (c.ciudad || 'El Alto') === ciudad);
   const pagos = pagosTodos.filter((p) => (p.clientes?.ciudad || 'El Alto') === ciudad);
   const registroMensual = registroTodo.filter((r) => (r.ciudad || 'El Alto') === ciudad);
