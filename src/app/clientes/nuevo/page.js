@@ -44,8 +44,13 @@ export default function NuevoClientePage() {
     }
   }, [sucursalActiva]);
 
+  // Solo los planes de la misma ciudad que tiene el formulario en este
+  // momento — así no se puede elegir por error un plan de la otra sede
+  // (su "Perfil MikroTik" no existiría en el router de esta ciudad).
+  const planesDeLaCiudad = planes.filter((p) => (p.ciudad || 'El Alto') === (form.ciudad || 'El Alto'));
+
   function aplicarPlan(nombrePlan) {
-    const p = planes.find((pl) => pl.nombre === nombrePlan);
+    const p = planesDeLaCiudad.find((pl) => pl.nombre === nombrePlan);
     if (p) {
       setForm((f) => ({ ...f, plan: p.nombre, velocidad: p.velocidad, frecuencia: p.frecuencia, precio: p.precio }));
     } else {
@@ -129,7 +134,7 @@ export default function NuevoClientePage() {
             <label className="label">Plan</label>
             <select className="input" value={form.plan} onChange={(e) => aplicarPlan(e.target.value)}>
               <option value="">— Selecciona un plan (o escribe uno personalizado abajo) —</option>
-              {planes.map((p) => (
+              {planesDeLaCiudad.map((p) => (
                 <option key={p.id} value={p.nombre}>
                   {p.nombre} ({p.velocidad}, Bs {p.precio})
                 </option>
