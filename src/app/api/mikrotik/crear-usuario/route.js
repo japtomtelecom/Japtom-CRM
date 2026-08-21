@@ -2,6 +2,14 @@ import { RouterOSAPI } from 'node-routeros';
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
 
+// "Bloquear servicio" y otras acciones hacen varios comandos seguidos al
+// MikroTik (buscar, modificar, a veces cortar sesión activa) y a veces
+// tardaban más de los 8s que tenía el timeout de conexión, mostrando
+// "Timed out after 8 seconds" y funcionando recién al 2do/3er intento.
+// Se sube el límite de Vercel (por defecto más corto) y el de la conexión
+// al router, dejando margen entre ambos.
+export const maxDuration = 20;
+
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
@@ -51,7 +59,7 @@ export async function POST(request) {
   let conn;
   try {
     const routerConfig = configMikrotik(cliente.ciudad);
-    conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
+    conn = new RouterOSAPI({ ...routerConfig, timeout: 15 });
     await conn.connect();
 
     const existentes = await conn.write('/ppp/secret/print', [`?name=${cliente.pppoe_usuario}`]);

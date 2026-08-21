@@ -2,6 +2,9 @@ import { RouterOSAPI } from 'node-routeros';
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
 
+// Ver nota en crear-usuario/route.js.
+export const maxDuration = 20;
+
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
@@ -22,7 +25,7 @@ export async function POST(request) {
   let conn;
   try {
     const routerConfig = configMikrotik(cliente.ciudad);
-    conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
+    conn = new RouterOSAPI({ ...routerConfig, timeout: 15 });
     await conn.connect();
 
     const activos = await conn.write('/ppp/active/print', [`?name=${cliente.pppoe_usuario}`]);

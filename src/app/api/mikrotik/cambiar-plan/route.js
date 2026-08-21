@@ -2,6 +2,11 @@ import { RouterOSAPI } from 'node-routeros';
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
 
+// Ver nota en crear-usuario/route.js: se sube el límite de tiempo porque
+// esta acción hace varios comandos seguidos al MikroTik y a veces superaba
+// los 8s que tenía antes, mostrando "Timed out after 8 seconds".
+export const maxDuration = 20;
+
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
@@ -40,7 +45,7 @@ export async function POST(request) {
   let conn;
   try {
     const routerConfig = configMikrotik(cliente.ciudad);
-    conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
+    conn = new RouterOSAPI({ ...routerConfig, timeout: 15 });
     await conn.connect();
 
     const secrets = await conn.write('/ppp/secret/print', [`?name=${cliente.pppoe_usuario}`]);
