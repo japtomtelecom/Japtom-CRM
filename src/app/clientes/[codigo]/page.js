@@ -108,6 +108,49 @@ function ModalContrato({ cliente, empresaNombre, onClose }) {
   );
 }
 
+function ModalBorrarCliente({ cliente, onConfirmar, onClose }) {
+  const [borrando, setBorrando] = useState(false);
+
+  async function confirmar() {
+    setBorrando(true);
+    await onConfirmar();
+    setBorrando(false);
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={borrando ? undefined : onClose}
+    >
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 400, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0, color: '#791F1F' }}>¿Desea borrar la ficha?</h3>
+        <p style={{ fontSize: 14, marginTop: -4 }}>
+          Se borrará definitivamente a <strong>{cliente.nombre}</strong> ({cliente.codigo}) y todo lo asociado:
+          historial de pagos, apuntes, configuración de PPPoE (MikroTik) y configuración de OLT
+          (puerto, ONU, SN).
+        </p>
+        <p style={{ fontSize: 13, color: '#791F1F', fontWeight: 500 }}>
+          Esta acción no se puede deshacer.
+        </p>
+
+        <div className="flex gap-2 mt-4">
+          <button
+            onClick={confirmar}
+            disabled={borrando}
+            className="btn-primary"
+            style={{ background: '#791F1F' }}
+          >
+            {borrando ? 'Borrando…' : 'Sí, borrar'}
+          </button>
+          <button onClick={onClose} disabled={borrando} className="btn-secondary">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function PanelApuntes({ clienteId, userEmail }) {
   const [notas, setNotas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -538,10 +581,10 @@ export default function FichaClientePage() {
   const [form, setForm] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
-  const [borrando, setBorrando] = useState(false);
   const [verPassword, setVerPassword] = useState(false);
   const [mostrarBoleta, setMostrarBoleta] = useState(false);
   const [mostrarContrato, setMostrarContrato] = useState(false);
+  const [mostrarBorrar, setMostrarBorrar] = useState(false);
   const [opticoOlt, setOpticoOlt] = useState(null);
   const [planes, setPlanes] = useState([]);
 
@@ -636,14 +679,10 @@ export default function FichaClientePage() {
   }
 
   async function borrarCliente() {
-    if (!confirm(`¿Borrar al cliente "${cliente.nombre}" (${cliente.codigo})? Esto borra también su historial de pagos, sus apuntes, su configuración de PPPoE (MikroTik) y su configuración de OLT (puerto, ONU, SN). Esta acción no se puede deshacer.`)) return;
-    if (!confirm(`Confirmá una vez más: ¿SEGURO que querés borrar a "${cliente.nombre}" definitivamente?`)) return;
-
-    setBorrando(true);
     setMsg('');
     const { error } = await supabase.from('clientes').delete().eq('id', cliente.id);
-    setBorrando(false);
     if (error) {
+      setMostrarBorrar(false);
       setMsg('Error al borrar: ' + error.message);
       return;
     }
@@ -845,12 +884,11 @@ export default function FichaClientePage() {
                 </button>
                 {isAdmin && (
                   <button
-                    onClick={borrarCliente}
-                    disabled={borrando}
+                    onClick={() => setMostrarBorrar(true)}
                     className="btn-secondary text-sm ml-auto"
                     style={{ color: '#791F1F', borderColor: '#f3c9c9' }}
                   >
-                    {borrando ? 'Borrando…' : '🗑️ Borrar cliente'}
+                    🗑️ Borrar cliente
                   </button>
                 )}
               </div>
@@ -1050,6 +1088,9 @@ export default function FichaClientePage() {
       )}
       {mostrarContrato && (
         <ModalContrato cliente={cliente} empresaNombre={config.empresa_nombre} onClose={() => setMostrarContrato(false)} />
+      )}
+      {mostrarBorrar && (
+        <ModalBorrarCliente cliente={cliente} onConfirmar={borrarCliente} onClose={() => setMostrarBorrar(false)} />
       )}
     </AppShell>
   );
