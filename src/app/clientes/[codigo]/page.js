@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import GraficoTrafico from '@/components/GraficoTrafico';
@@ -525,6 +525,7 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
 
 export default function FichaClientePage() {
   const params = useParams();
+  const router = useRouter();
   const { isAdmin } = usePerfil();
   const { user } = useAuth();
   const codigo = params.codigo;
@@ -537,6 +538,7 @@ export default function FichaClientePage() {
   const [form, setForm] = useState(null);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
+  const [borrando, setBorrando] = useState(false);
   const [verPassword, setVerPassword] = useState(false);
   const [mostrarBoleta, setMostrarBoleta] = useState(false);
   const [mostrarContrato, setMostrarContrato] = useState(false);
@@ -631,6 +633,21 @@ export default function FichaClientePage() {
     setMsg('Cambios guardados correctamente.');
     setEditando(false);
     cargar();
+  }
+
+  async function borrarCliente() {
+    if (!confirm(`¿Borrar al cliente "${cliente.nombre}" (${cliente.codigo})? Esto borra también su historial de pagos, sus apuntes, su configuración de PPPoE (MikroTik) y su configuración de OLT (puerto, ONU, SN). Esta acción no se puede deshacer.`)) return;
+    if (!confirm(`Confirmá una vez más: ¿SEGURO que querés borrar a "${cliente.nombre}" definitivamente?`)) return;
+
+    setBorrando(true);
+    setMsg('');
+    const { error } = await supabase.from('clientes').delete().eq('id', cliente.id);
+    setBorrando(false);
+    if (error) {
+      setMsg('Error al borrar: ' + error.message);
+      return;
+    }
+    router.push('/clientes');
   }
 
   if (loading) {
@@ -812,7 +829,7 @@ export default function FichaClientePage() {
 
               {msg && <p className="col-span-2 text-sm text-brand-600">{msg}</p>}
 
-              <div className="col-span-2 flex gap-2 mt-2">
+              <div className="col-span-2 flex gap-2 mt-2 flex-wrap items-center">
                 <button onClick={guardar} disabled={guardando} className="btn-primary">
                   {guardando ? 'Guardando…' : 'Guardar cambios'}
                 </button>
@@ -826,6 +843,16 @@ export default function FichaClientePage() {
                 >
                   Cancelar
                 </button>
+                {isAdmin && (
+                  <button
+                    onClick={borrarCliente}
+                    disabled={borrando}
+                    className="btn-secondary text-sm ml-auto"
+                    style={{ color: '#791F1F', borderColor: '#f3c9c9' }}
+                  >
+                    {borrando ? 'Borrando…' : '🗑️ Borrar cliente'}
+                  </button>
+                )}
               </div>
             </div>
           )}

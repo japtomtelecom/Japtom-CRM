@@ -4,7 +4,6 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
-import { usePerfil } from '@/lib/usePerfil';
 import { useSucursalActiva } from '@/lib/useSucursalActiva';
 import { formatBs, linkWhatsApp, construirMensaje, construirMensajeCorte, construirMensajeRecordatorio } from '@/lib/utils';
 import { exportarExcel } from '@/lib/exportExcel';
@@ -94,7 +93,6 @@ function ModalMeses({ cliente, onClose }) {
 }
 
 export default function ClientesPage() {
-  const { isAdmin } = usePerfil();
   const { sucursalActiva, esFija } = useSucursalActiva();
   const [clientes, setClientes] = useState([]);
   const [busqueda, setBusqueda] = useState('');
@@ -136,20 +134,6 @@ export default function ClientesPage() {
     setClientes((prev) =>
       prev.map((c) => (c.id === clienteId ? { ...c, ultimo_mensaje_enviado: new Date().toISOString() } : c))
     );
-  }
-
-  async function borrarCliente(cliente) {
-    if (!confirm(`¿Borrar al cliente "${cliente.nombre}" (${cliente.codigo})? Esto también borra su historial de pagos. Esta acción no se puede deshacer.`)) return;
-    if (!confirm(`Confirmá una vez más: ¿SEGURO que querés borrar a "${cliente.nombre}" definitivamente?`)) return;
-
-    setMsg('');
-    const { error } = await supabase.from('clientes').delete().eq('id', cliente.id);
-    if (error) {
-      setMsg('Error al borrar: ' + error.message);
-      return;
-    }
-    setMsg(`Cliente "${cliente.nombre}" borrado.`);
-    load();
   }
 
   const diasDisponibles = useMemo(() => {
@@ -339,17 +323,9 @@ export default function ClientesPage() {
                     >
                       💵 Registrar pago
                     </Link>
-                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline mr-3">
+                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
                       Ver ficha →
                     </Link>
-                    {isAdmin && (
-                      <button
-                        onClick={() => borrarCliente(c)}
-                        className="text-red-500 hover:underline text-xs"
-                      >
-                        Borrar
-                      </button>
-                    )}
                   </td>
                 </tr>
               );
