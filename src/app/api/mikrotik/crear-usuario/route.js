@@ -28,6 +28,26 @@ export async function POST(request) {
     .eq('nombre', cliente.plan)
     .single();
 
+  // Antes, si no había match de plan (o el plan no tenía "Perfil MikroTik"
+  // cargado en Planes), este endpoint creaba igual el usuario PPPoE pero
+  // SIN el parámetro =profile=, y el MikroTik lo asignaba en silencio al
+  // perfil "default" — sin avisar. Ahora se corta antes de conectar al
+  // router, igual que ya hacía /api/mikrotik/cambiar-plan.
+  if (!cliente.plan) {
+    return Response.json(
+      { error: 'Este cliente no tiene un "Plan" asignado en su ficha.' },
+      { status: 400 }
+    );
+  }
+  if (!planCatalogo?.perfil_mikrotik) {
+    return Response.json(
+      {
+        error: `El plan "${cliente.plan}" no tiene un "Perfil MikroTik" configurado en Planes (o el nombre no coincide exactamente con el catálogo). Corrígelo en Planes antes de crear el usuario, o el MikroTik lo va a asignar al perfil "default".`,
+      },
+      { status: 400 }
+    );
+  }
+
   let conn;
   try {
     const routerConfig = configMikrotik(cliente.ciudad);
@@ -49,10 +69,8 @@ export async function POST(request) {
       '=service=pppoe',
       `=disabled=${cliente.activo ? 'no' : 'yes'}`,
       `=comment=${cliente.nombre} (${cliente.codigo})`,
+      `=profile=${planCatalogo.perfil_mikrotik}`,
     ];
-    if (planCatalogo?.perfil_mikrotik) {
-      params.push(`=profile=${planCatalogo.perfil_mikrotik}`);
-    }
     if (cliente.ip_asignada) {
       params.push(`=remote-address=${cliente.ip_asignada}`);
     }
