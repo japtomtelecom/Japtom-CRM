@@ -687,8 +687,6 @@ export default function FichaClientePage() {
 
       <div className="grid md:grid-cols-3 gap-6 items-start">
         <div className="md:col-span-2 space-y-6">
-        <PanelApuntes clienteId={cliente.id} userEmail={user?.email} />
-
         <div className="card p-5">
           <h2 className="font-semibold text-brand-700 mb-3">Datos del cliente</h2>
 
@@ -832,6 +830,8 @@ export default function FichaClientePage() {
             </div>
           )}
         </div>
+
+        <PanelApuntes clienteId={cliente.id} userEmail={user?.email} />
 
         {isAdmin && opticoOlt && (
           <>
