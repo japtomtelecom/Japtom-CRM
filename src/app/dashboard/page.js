@@ -71,6 +71,7 @@ export default function DashboardPage() {
       clientes_activos: clientesF.filter((c) => c.activo).length,
       clientes_inactivos: clientesF.filter((c) => !c.activo).length,
       clientes_al_dia: clientesF.filter((c) => c.activo && c.estado === 'Al día').length,
+      clientes_por_vencer: clientesF.filter((c) => c.activo && c.estado === 'Por vencer').length,
       clientes_vencidos: clientesF.filter((c) => c.activo && c.estado === 'Vencido').length,
       cobrado_mes_actual: cobradoMes,
       ingreso_historico: ingresoHistorico,
@@ -109,6 +110,7 @@ export default function DashboardPage() {
           <StatCard label="Clientes activos" value={kpi.clientes_activos} />
           <StatCard label="Clientes inactivos" value={kpi.clientes_inactivos} />
           <StatCard label="Al día" value={kpi.clientes_al_dia} />
+          <StatCard label="Por vencer (mañana)" value={kpi.clientes_por_vencer} />
           <StatCard label="Vencidos" value={kpi.clientes_vencidos} />
           <StatCard label="Cobrado este mes" value={formatBs(kpi.cobrado_mes_actual)} accent />
           <StatCard label="Ingreso histórico (mensualidades)" value={formatBs(kpi.ingreso_historico)} />

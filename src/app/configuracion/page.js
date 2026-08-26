@@ -14,6 +14,7 @@ const CAMPOS = [
   { clave: 'banco_cuenta', label: 'Cuenta bancaria' },
   { clave: 'qr_imagen_url', label: 'URL de la imagen del QR de pago' },
   { clave: 'mensaje_recordatorio', label: 'Plantilla: recordatorio de pago (vencido)', textarea: true },
+  { clave: 'mensaje_por_vencer', label: 'Plantilla: recordatorio de pago (por vencer, 1 día antes)', textarea: true },
   { clave: 'mensaje_al_dia', label: 'Plantilla: cliente al día', textarea: true },
   { clave: 'mensaje_inactivo', label: 'Plantilla: cliente inactivo', textarea: true },
   { clave: 'mensaje_corte', label: 'Plantilla: aviso de corte por falta de pago', textarea: true },

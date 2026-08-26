@@ -32,6 +32,15 @@ export function construirMensaje(cliente, plantillas, empresaNombre) {
       .replaceAll('{plan}', cliente.plan || 'de Internet')
       .replaceAll('{empresa}', empresaNombre || 'Japtom-Telecom');
   }
+  if (cliente.estado === 'Por vencer') {
+    return (plantillas.mensaje_por_vencer || plantillas.mensaje_recordatorio || '')
+      .replaceAll('{nombre}', cliente.nombre)
+      .replaceAll('{codigo}', cliente.codigo)
+      .replaceAll('{precio}', cliente.precio || '')
+      .replaceAll('{dia_pago}', cliente.dia_pago ?? '')
+      .replaceAll('{plan}', cliente.plan || 'de Internet')
+      .replaceAll('{empresa}', empresaNombre || 'Japtom-Telecom');
+  }
   return (plantillas.mensaje_recordatorio || '')
     .replaceAll('{nombre}', cliente.nombre)
     .replaceAll('{codigo}', cliente.codigo)

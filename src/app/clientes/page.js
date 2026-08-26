@@ -22,11 +22,9 @@ function formatPeriodoCorto(periodo) {
 
 function Badge({ cliente }) {
   if (!cliente.activo) return <span className="badge-inactivo">Inactivo</span>;
-  return cliente.estado === 'Al día' ? (
-    <span className="badge-al-dia">Al día</span>
-  ) : (
-    <span className="badge-vencido">Vencido</span>
-  );
+  if (cliente.estado === 'Al día') return <span className="badge-al-dia">Al día</span>;
+  if (cliente.estado === 'Por vencer') return <span className="badge-por-vencer">Por vencer</span>;
+  return <span className="badge-vencido">Vencido</span>;
 }
 
 function ModalMeses({ cliente, onClose }) {
@@ -103,6 +101,7 @@ export default function ClientesPage() {
   const [config, setConfig] = useState({});
   const [clienteMeses, setClienteMeses] = useState(null);
   const [msg, setMsg] = useState('');
+  const [seleccionMasivo, setSeleccionMasivo] = useState(new Set());
 
   useEffect(() => {
     if (sucursalActiva) setCiudadFiltro(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
@@ -136,19 +135,43 @@ export default function ClientesPage() {
     );
   }
 
-  // Clientes activos, vencidos, con ese día de pago exacto — son a los que
-  // apunta el botón de envío masivo cuando hay un día de pago seleccionado
-  // en el filtro de arriba.
-  const vencidosDelDiaFiltro = useMemo(() => {
+  // Clientes activos, vencidos O por vencer (falta 1 día), con ese día de
+  // pago exacto — son los candidatos que se listan con checkbox para el
+  // envío masivo cuando hay un día de pago seleccionado en el filtro de
+  // arriba. El usuario puede desmarcar a quien no quiera incluir.
+  const candidatosDelDiaFiltro = useMemo(() => {
     if (diaPagoFiltro === 'todos') return [];
     return clientes.filter(
-      (c) => c.activo && c.estado === 'Vencido' && Number(c.dia_pago) === Number(diaPagoFiltro)
+      (c) =>
+        c.activo &&
+        (c.estado === 'Vencido' || c.estado === 'Por vencer') &&
+        Number(c.dia_pago) === Number(diaPagoFiltro)
     );
   }, [clientes, diaPagoFiltro]);
 
+  // Al cambiar el día de pago filtrado, se parte de "todos seleccionados"
+  // (comportamiento previo) — el usuario puede desmarcar individualmente
+  // desde ahí. No se reinicia si solo cambian los datos de `clientes`
+  // (ej. al marcar mensaje enviado), para no perder lo que el usuario ya
+  // desmarcó a mitad de la revisión.
+  useEffect(() => {
+    setSeleccionMasivo(new Set(candidatosDelDiaFiltro.map((c) => c.id)));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [diaPagoFiltro]);
+
+  function toggleSeleccionMasivo(id) {
+    setSeleccionMasivo((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
   async function enviarMasivoDia() {
     const dia = diaPagoFiltro;
-    const candidatos = vencidosDelDiaFiltro
+    const candidatos = candidatosDelDiaFiltro
+      .filter((c) => seleccionMasivo.has(c.id))
       .map((c) => ({
         cliente: c,
         wa: linkWhatsApp(c.telefono, construirMensaje(c, config, config.empresa_nombre)),
@@ -156,13 +179,13 @@ export default function ClientesPage() {
       .filter((x) => x.wa);
 
     if (candidatos.length === 0) {
-      setMsg(`No hay clientes vencidos con día de pago ${dia} y teléfono válido.`);
+      setMsg(`No hay clientes seleccionados con teléfono válido para el día ${dia}.`);
       return;
     }
 
     const nombres = candidatos.map((x) => x.cliente.nombre).join(', ');
     const confirmado = confirm(
-      `¿Confirmas enviar el recordatorio de pago a ${candidatos.length} cliente(s) vencido(s) del día ${dia}?\n\n` +
+      `¿Confirmas enviar el recordatorio de pago a ${candidatos.length} cliente(s) seleccionado(s) del día ${dia}?\n\n` +
         `${nombres}\n\n` +
         `Se abrirá una pestaña de WhatsApp por cada uno con el mensaje ya escrito (tienes que darle Enviar en ` +
         `cada una). Si el navegador bloquea las pestañas, permite los pop-ups para este sitio y vuelve a intentar.`
@@ -188,6 +211,7 @@ export default function ClientesPage() {
     if (filtro === 'activos') lista = lista.filter((c) => c.activo);
     if (filtro === 'inactivos') lista = lista.filter((c) => !c.activo);
     if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
+    if (filtro === 'por_vencer') lista = lista.filter((c) => c.activo && c.estado === 'Por vencer');
     if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
     if (diaPagoFiltro !== 'todos') {
       lista = lista.filter((c) => Number(c.dia_pago) === Number(diaPagoFiltro));
@@ -241,6 +265,7 @@ export default function ClientesPage() {
           <option value="activos">Activos</option>
           <option value="inactivos">Inactivos</option>
           <option value="al_dia">Al día</option>
+          <option value="por_vencer">Por vencer</option>
           <option value="vencidos">Vencidos</option>
         </select>
         <select
@@ -255,12 +280,50 @@ export default function ClientesPage() {
             </option>
           ))}
         </select>
-        {diaPagoFiltro !== 'todos' && vencidosDelDiaFiltro.length > 0 && (
-          <button onClick={enviarMasivoDia} className="btn-primary">
-            📤 Enviar recordatorio masivo (día {diaPagoFiltro}) · {vencidosDelDiaFiltro.length}
-          </button>
-        )}
       </div>
+
+      {diaPagoFiltro !== 'todos' && candidatosDelDiaFiltro.length > 0 && (
+        <div className="card p-4 mb-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+            <p className="text-sm font-medium text-brand-700">
+              Recordatorio masivo — día {diaPagoFiltro} · {candidatosDelDiaFiltro.length} candidato
+              {candidatosDelDiaFiltro.length === 1 ? '' : 's'} (vencidos y por vencer)
+            </p>
+            <div className="flex gap-3">
+              <button
+                type="button"
+                className="text-xs text-brand-600 hover:underline"
+                onClick={() => setSeleccionMasivo(new Set(candidatosDelDiaFiltro.map((c) => c.id)))}
+              >
+                Seleccionar todos
+              </button>
+              <button
+                type="button"
+                className="text-xs text-brand-600 hover:underline"
+                onClick={() => setSeleccionMasivo(new Set())}
+              >
+                Ninguno
+              </button>
+            </div>
+          </div>
+          <ul className="flex flex-col gap-1.5 mb-3 max-h-56 overflow-y-auto">
+            {candidatosDelDiaFiltro.map((c) => (
+              <li key={c.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={seleccionMasivo.has(c.id)}
+                  onChange={() => toggleSeleccionMasivo(c.id)}
+                />
+                <span className="flex-1">{c.nombre}</span>
+                <span className={c.estado === 'Vencido' ? 'badge-vencido' : 'badge-por-vencer'}>{c.estado}</span>
+              </li>
+            ))}
+          </ul>
+          <button onClick={enviarMasivoDia} disabled={seleccionMasivo.size === 0} className="btn-primary">
+            📤 Enviar recordatorio masivo · {seleccionMasivo.size}
+          </button>
+        </div>
+      )}
 
       {msg && <p className="text-sm text-brand-600 mb-3">{msg}</p>}
 
