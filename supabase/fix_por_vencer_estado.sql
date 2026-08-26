@@ -23,10 +23,34 @@
 -- cortos con LEAST(dia_pago, días_del_mes)) para no repetirla tres
 -- veces en el CASE.
 --
+-- NOTA: se usa DROP + CREATE (no CREATE OR REPLACE) porque la
+-- columna `telefono2` (agregada a `clientes` con
+-- telefono2_migracion.sql) se cuela, vía `c.*`, ANTES de las
+-- columnas calculadas (pagado_mes_actual, estado) y les corre la
+-- posición — Postgres no permite eso con CREATE OR REPLACE VIEW
+-- (solo permite agregar columnas nuevas al final), da el error
+-- 42P16 "cannot change name of view column ... to telefono2".
+-- Con DROP + CREATE no aplica esa restricción.
+--
+-- NOTA 2: apareció una vista `v_dashboard` (no estaba en ningún
+-- archivo del repo, solo existía en Supabase) que depende de
+-- v_clientes_estado — el DROP simple falló con 2BP01 "cannot drop
+-- view v_clientes_estado because other objects depend on it". Se
+-- usa DROP ... CASCADE (se lleva puesta v_dashboard también) y
+-- después se recrea v_dashboard IDÉNTICA a como estaba (se pidió su
+-- definición con pg_get_viewdef antes de tocar nada, mismo criterio
+-- que en fix-vencido-dia-pago.md) — no se le cambió ninguna lógica.
+-- Al final se vuelve a otorgar SELECT a los roles que usa Supabase
+-- en ambas vistas (por si el DROP se llevó algún grant explícito;
+-- los privilegios por defecto del proyecto normalmente ya cubren
+-- esto, pero no está de más).
+--
 -- Ejecutar en el SQL Editor de Supabase.
 -- ============================================================
 
-create or replace view v_clientes_estado as
+drop view if exists v_clientes_estado cascade;
+
+create view v_clientes_estado as
 select
   c.*,
   coalesce(pm.total, 0) as pagado_mes_actual,
@@ -67,3 +91,32 @@ left join lateral (
     + (least(c.dia_pago, extract(day from date_trunc('month', current_date)::date + interval '1 mon -1 days')::integer) - 1) * interval '1 day'
   )::date as fecha_corte
 ) fc on true;
+
+grant select on v_clientes_estado to anon, authenticated, service_role;
+
+-- v_dashboard recreada tal cual estaba (se perdió con el CASCADE de arriba;
+-- definición obtenida con pg_get_viewdef antes de borrar nada, sin cambios).
+create view v_dashboard as
+ SELECT ( SELECT count(*) AS count
+           FROM clientes) AS total_clientes,
+    ( SELECT count(*) AS count
+           FROM clientes
+          WHERE clientes.activo) AS clientes_activos,
+    ( SELECT count(*) AS count
+           FROM clientes
+          WHERE NOT clientes.activo) AS clientes_inactivos,
+    ( SELECT count(*) AS count
+           FROM v_clientes_estado
+          WHERE v_clientes_estado.activo AND v_clientes_estado.estado = 'Al día'::text) AS clientes_al_dia,
+    ( SELECT count(*) AS count
+           FROM v_clientes_estado
+          WHERE v_clientes_estado.activo AND v_clientes_estado.estado = 'Vencido'::text) AS clientes_vencidos,
+    ( SELECT COALESCE(sum(pagos.monto), 0::numeric) AS "coalesce"
+           FROM pagos
+          WHERE date_trunc('month'::text, pagos.fecha_pago::timestamp with time zone) = date_trunc('month'::text, CURRENT_DATE::timestamp with time zone)) AS cobrado_mes_actual,
+    ( SELECT COALESCE(sum(pagos.monto), 0::numeric) AS "coalesce"
+           FROM pagos) AS ingreso_historico,
+    ( SELECT COALESCE(round(avg(pagos.monto), 2), 0::numeric) AS "coalesce"
+           FROM pagos) AS ticket_promedio;
+
+grant select on v_dashboard to anon, authenticated, service_role;
