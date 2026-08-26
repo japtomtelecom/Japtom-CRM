@@ -136,6 +136,44 @@ export default function ClientesPage() {
     );
   }
 
+  // Clientes activos, vencidos, con ese día de pago exacto — son a los que
+  // apunta el botón de envío masivo cuando hay un día de pago seleccionado
+  // en el filtro de arriba.
+  const vencidosDelDiaFiltro = useMemo(() => {
+    if (diaPagoFiltro === 'todos') return [];
+    return clientes.filter(
+      (c) => c.activo && c.estado === 'Vencido' && Number(c.dia_pago) === Number(diaPagoFiltro)
+    );
+  }, [clientes, diaPagoFiltro]);
+
+  async function enviarMasivoDia() {
+    const dia = diaPagoFiltro;
+    const candidatos = vencidosDelDiaFiltro
+      .map((c) => ({
+        cliente: c,
+        wa: linkWhatsApp(c.telefono, construirMensaje(c, config, config.empresa_nombre)),
+      }))
+      .filter((x) => x.wa);
+
+    if (candidatos.length === 0) {
+      setMsg(`No hay clientes vencidos con día de pago ${dia} y teléfono válido.`);
+      return;
+    }
+
+    const nombres = candidatos.map((x) => x.cliente.nombre).join(', ');
+    const confirmado = confirm(
+      `¿Confirmas enviar el recordatorio de pago a ${candidatos.length} cliente(s) vencido(s) del día ${dia}?\n\n` +
+        `${nombres}\n\n` +
+        `Se abrirá una pestaña de WhatsApp por cada uno con el mensaje ya escrito (tienes que darle Enviar en ` +
+        `cada una). Si el navegador bloquea las pestañas, permite los pop-ups para este sitio y vuelve a intentar.`
+    );
+    if (!confirmado) return;
+
+    candidatos.forEach(({ wa }) => window.open(wa, '_blank'));
+    await Promise.all(candidatos.map(({ cliente }) => marcarMensajeEnviado(cliente.id)));
+    setMsg(`Se abrieron ${candidatos.length} pestaña(s) de WhatsApp para el día ${dia}.`);
+  }
+
   const diasDisponibles = useMemo(() => {
     const set = new Set();
     clientes.forEach((c) => {
@@ -217,6 +255,11 @@ export default function ClientesPage() {
             </option>
           ))}
         </select>
+        {diaPagoFiltro !== 'todos' && vencidosDelDiaFiltro.length > 0 && (
+          <button onClick={enviarMasivoDia} className="btn-primary">
+            📤 Enviar recordatorio masivo (día {diaPagoFiltro}) · {vencidosDelDiaFiltro.length}
+          </button>
+        )}
       </div>
 
       {msg && <p className="text-sm text-brand-600 mb-3">{msg}</p>}
