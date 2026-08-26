@@ -110,7 +110,7 @@ export default function DashboardPage() {
           <StatCard label="Clientes activos" value={kpi.clientes_activos} />
           <StatCard label="Clientes inactivos" value={kpi.clientes_inactivos} />
           <StatCard label="Al día" value={kpi.clientes_al_dia} />
-          <StatCard label="Por vencer (mañana)" value={kpi.clientes_por_vencer} />
+          <StatCard label="Por vencer (1-2 días)" value={kpi.clientes_por_vencer} />
           <StatCard label="Vencidos" value={kpi.clientes_vencidos} />
           <StatCard label="Cobrado este mes" value={formatBs(kpi.cobrado_mes_actual)} accent />
           <StatCard label="Ingreso histórico (mensualidades)" value={formatBs(kpi.ingreso_historico)} />
