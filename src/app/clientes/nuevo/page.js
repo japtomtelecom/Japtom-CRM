@@ -14,6 +14,7 @@ export default function NuevoClientePage() {
     codigo: '',
     nombre: '',
     telefono: '',
+    telefono2: '',
     ci: '',
     costo_instalacion: '',
     dia_pago: '',
@@ -117,6 +118,15 @@ export default function NuevoClientePage() {
           <div>
             <label className="label">Teléfono</label>
             <input className="input" value={form.telefono} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+          </div>
+          <div>
+            <label className="label">Teléfono 2 (opcional)</label>
+            <input
+              className="input"
+              value={form.telefono2}
+              onChange={(e) => setForm({ ...form, telefono2: e.target.value })}
+              placeholder="Ej: otro número de contacto del cliente"
+            />
           </div>
           <div>
             <label className="label">CI (Cédula de identidad)</label>

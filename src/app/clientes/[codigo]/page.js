@@ -665,6 +665,7 @@ export default function FichaClientePage() {
       .update({
         nombre: form.nombre,
         telefono: form.telefono,
+        telefono2: form.telefono2,
         ciudad: form.ciudad,
         dia_pago: form.dia_pago ? Number(form.dia_pago) : null,
         activo: form.activo,
@@ -725,6 +726,7 @@ export default function FichaClientePage() {
 
   const mensaje = construirMensaje(cliente, config, config.empresa_nombre);
   const wa = linkWhatsApp(cliente.telefono, mensaje);
+  const wa2 = linkWhatsApp(cliente.telefono2, mensaje);
 
   return (
     <AppShell>
@@ -740,6 +742,11 @@ export default function FichaClientePage() {
           {wa && (
             <a href={wa} target="_blank" rel="noreferrer" className="btn-whatsapp">
               📲 WhatsApp
+            </a>
+          )}
+          {wa2 && (
+            <a href={wa2} target="_blank" rel="noreferrer" className="btn-whatsapp" title={`Teléfono 2: ${cliente.telefono2}`}>
+              📲 WhatsApp 2
             </a>
           )}
           <button onClick={() => setMostrarContrato(true)} className="btn-secondary">
@@ -766,6 +773,10 @@ export default function FichaClientePage() {
               <div>
                 <span className="text-brand-400">Teléfono</span>
                 <p className="font-medium">{cliente.telefono || '—'}</p>
+              </div>
+              <div>
+                <span className="text-brand-400">Teléfono 2</span>
+                <p className="font-medium">{cliente.telefono2 || '—'}</p>
               </div>
               <div>
                 <span className="text-brand-400">Ciudad</span>
@@ -821,6 +832,10 @@ export default function FichaClientePage() {
               <div>
                 <label className="label">Teléfono</label>
                 <input className="input" value={form.telefono || ''} onChange={(e) => setForm({ ...form, telefono: e.target.value })} />
+              </div>
+              <div>
+                <label className="label">Teléfono 2 (opcional)</label>
+                <input className="input" value={form.telefono2 || ''} onChange={(e) => setForm({ ...form, telefono2: e.target.value })} />
               </div>
               <div>
                 <label className="label">Ciudad</label>
