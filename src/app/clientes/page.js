@@ -135,19 +135,30 @@ export default function ClientesPage() {
     );
   }
 
+  // Base para todo lo que depende del día de pago (candidatos del
+  // recordatorio masivo, días disponibles en el desplegable): siempre
+  // respetando la ciudad seleccionada arriba. Antes estos cálculos partían
+  // de `clientes` (las dos sedes juntas) sin filtrar por ciudad, así que
+  // con "Tarija" elegido igual aparecían candidatos y días de El Alto —
+  // cada ciudad tiene que ser independiente en todo, no solo la tabla.
+  const clientesDeLaCiudad = useMemo(() => {
+    if (ciudadFiltro === 'todas') return clientes;
+    return clientes.filter((c) => c.ciudad === ciudadFiltro);
+  }, [clientes, ciudadFiltro]);
+
   // Clientes activos, vencidos O por vencer (falta 1 día), con ese día de
   // pago exacto — son los candidatos que se listan con checkbox para el
   // envío masivo cuando hay un día de pago seleccionado en el filtro de
   // arriba. El usuario puede desmarcar a quien no quiera incluir.
   const candidatosDelDiaFiltro = useMemo(() => {
     if (diaPagoFiltro === 'todos') return [];
-    return clientes.filter(
+    return clientesDeLaCiudad.filter(
       (c) =>
         c.activo &&
         (c.estado === 'Vencido' || c.estado === 'Por vencer') &&
         Number(c.dia_pago) === Number(diaPagoFiltro)
     );
-  }, [clientes, diaPagoFiltro]);
+  }, [clientesDeLaCiudad, diaPagoFiltro]);
 
   // Al cambiar el día de pago filtrado, se parte de "todos seleccionados"
   // (comportamiento previo) — el usuario puede desmarcar individualmente
@@ -158,6 +169,17 @@ export default function ClientesPage() {
     setSeleccionMasivo(new Set(candidatosDelDiaFiltro.map((c) => c.id)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diaPagoFiltro]);
+
+  // Si el día de pago elegido no existe para la ciudad seleccionada (ej.
+  // tenías "Día 11" elegido viendo El Alto y cambiás a Tarija, que no tiene
+  // ningún cliente con ese día), se limpia el filtro en vez de dejarlo
+  // seleccionado mostrando 0 candidatos sin explicación.
+  useEffect(() => {
+    if (diaPagoFiltro !== 'todos' && !diasDisponibles.includes(Number(diaPagoFiltro))) {
+      setDiaPagoFiltro('todos');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ciudadFiltro, diasDisponibles]);
 
   function toggleSeleccionMasivo(id) {
     setSeleccionMasivo((prev) => {
@@ -199,11 +221,11 @@ export default function ClientesPage() {
 
   const diasDisponibles = useMemo(() => {
     const set = new Set();
-    clientes.forEach((c) => {
+    clientesDeLaCiudad.forEach((c) => {
       if (c.dia_pago !== null && c.dia_pago !== undefined) set.add(Number(c.dia_pago));
     });
     return Array.from(set).sort((a, b) => a - b);
-  }, [clientes]);
+  }, [clientesDeLaCiudad]);
 
   const filtrados = useMemo(() => {
     let lista = clientes;
