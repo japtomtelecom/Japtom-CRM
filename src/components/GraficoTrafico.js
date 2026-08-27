@@ -3,7 +3,12 @@
 import { useEffect, useRef, useState } from 'react';
 import { llamarApiAdmin } from '@/lib/llamarApiAdmin';
 
-const MAX_PUNTOS = 30;
+// Antes mostraba solo 30 puntos (90s con el intervalo de 3s de abajo) — el
+// usuario lo encontró muy corto para ver patrones (picos, caídas). Con 100
+// puntos y el mismo intervalo de 3s, la ventana visible pasa a ser de 5
+// minutos, sin pedirle más seguido al MikroTik (mismo intervaloMs de
+// siempre, solo se guardan más puntos del lado del navegador).
+const MAX_PUNTOS = 100;
 
 function formatMbps(bps) {
   return (bps / 1_000_000).toFixed(1);
@@ -87,6 +92,15 @@ export default function GraficoTrafico({ titulo, endpoint, body, intervaloMs = 3
 
   const max = Math.max(1, ...puntos.map((p) => Math.max(p.rx, p.tx)));
   const ultimo = puntos.length ? puntos[puntos.length - 1] : { rx: 0, tx: 0 };
+  const picoRx = puntos.length ? Math.max(...puntos.map((p) => p.rx)) : 0;
+  const picoTx = puntos.length ? Math.max(...puntos.map((p) => p.tx)) : 0;
+
+  // Ventana de tiempo que representa el gráfico completo (todos los
+  // MAX_PUNTOS puntos), para mostrarla en vez de solo "cada cuánto se
+  // actualiza" — así queda claro cuánto tiempo hacia atrás se está viendo.
+  const ventanaSegundos = Math.round((MAX_PUNTOS * intervaloMs) / 1000);
+  const ventanaTexto =
+    ventanaSegundos >= 60 ? `${Math.round(ventanaSegundos / 60)} min` : `${ventanaSegundos}s`;
 
   function trazo(campo) {
     if (puntos.length < 2) return '';
@@ -116,7 +130,7 @@ export default function GraficoTrafico({ titulo, endpoint, body, intervaloMs = 3
 
       {(estado === 'ok' || (estado === 'cargando' && puntos.length > 0)) && (
         <>
-          <div className="flex gap-6 mb-3">
+          <div className="flex gap-6 mb-3 flex-wrap">
             <div>
               <p className="text-xs text-brand-400">⬇️ Bajada</p>
               <p className="text-xl font-semibold" style={{ color: '#085041' }}>
@@ -129,6 +143,18 @@ export default function GraficoTrafico({ titulo, endpoint, body, intervaloMs = 3
                 {formatMbps(ultimo.tx)} Mbps
               </p>
             </div>
+            <div>
+              <p className="text-xs text-brand-400">⬇️ Pico bajada</p>
+              <p className="text-sm font-medium" style={{ color: '#085041' }}>
+                {formatMbps(picoRx)} Mbps
+              </p>
+            </div>
+            <div>
+              <p className="text-xs text-brand-400">⬆️ Pico subida</p>
+              <p className="text-sm font-medium" style={{ color: '#8a6d00' }}>
+                {formatMbps(picoTx)} Mbps
+              </p>
+            </div>
           </div>
           <svg
             viewBox="0 0 100 100"
@@ -139,7 +165,9 @@ export default function GraficoTrafico({ titulo, endpoint, body, intervaloMs = 3
             <path d={trazo('tx')} fill="none" stroke="#8a6d00" strokeWidth="1.5" vectorEffect="non-scaling-stroke" />
           </svg>
           <p className="text-xs text-brand-400 mt-2">
-            🟢 Bajada · 🟡 Subida — se actualiza solo cada {Math.round(intervaloMs / 1000)}s
+            🟢 Bajada · 🟡 Subida — mostrando los últimos {ventanaTexto}
+            {puntos.length < MAX_PUNTOS ? ' (llenándose…)' : ''}, actualiza cada{' '}
+            {Math.round(intervaloMs / 1000)}s
             {avisoTransitorio && ' · ⚠️ hipo de conexión, reintentando…'}
           </p>
         </>

@@ -1225,7 +1225,21 @@ export default function FichaClientePage() {
                 </div>
                 <div>
                   <span className="text-brand-400">IP asignada</span>
-                  <p className="font-mono font-medium">{cliente.ip_asignada || '—'}</p>
+                  <p className="font-mono font-medium">
+                    {cliente.ip_asignada ? (
+                      <a
+                        href={`http://${cliente.ip_asignada}:8080`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-brand-600 hover:underline"
+                        title="Abrir la interfaz web del equipo en esa IP (puerto 8080)"
+                      >
+                        {cliente.ip_asignada} ↗
+                      </a>
+                    ) : (
+                      '—'
+                    )}
+                  </p>
                 </div>
               </div>
             ) : (
