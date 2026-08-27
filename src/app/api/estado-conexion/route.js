@@ -1,11 +1,14 @@
 import { RouterOSAPI } from 'node-routeros';
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
+import { msDesdeUptimeRouteros } from '@/lib/mikrotikTrafico';
 import { configOlt } from '@/lib/oltConfig';
 import {
   ejecutarComandosOlt,
   comandosEnInterfazPon,
   parseOnuState,
+  parseOpticalInfo,
+  evaluarRx,
   detectarErrorCli,
 } from '@/lib/oltSsh';
 
@@ -50,12 +53,28 @@ async function consultarPppoe(supabaseAdmin, cliente, clienteId) {
     conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
     await conn.connect();
 
-    const activos = await conn.write('/ppp/active/print', [`?name=${cliente.pppoe_usuario}`]);
+    const activos = await conn.write('/ppp/active/print', [
+      `?name=${cliente.pppoe_usuario}`,
+      '=.proplist=name,uptime',
+    ]);
     conn.close();
 
     const online = activos.length > 0;
     const desde = await actualizarHistorialPppoe(supabaseAdmin, clienteId, online);
-    return { online, desde };
+
+    // Si está conectado, RouterOS ya sabe hace cuánto exactamente (campo
+    // "uptime" de la sesión activa, ej. "3h25m10s") — es más preciso que
+    // nuestro propio historial (que depende de cada cuánto se revisa), así
+    // que se usa ese para calcular la hora exacta de conexión. El
+    // historial (`desde`) solo hace falta para el caso "desconectado", que
+    // el MikroTik no recuerda una vez que la sesión ya no está activa.
+    let conectadoDesde = null;
+    if (online) {
+      const ms = msDesdeUptimeRouteros(activos[0].uptime);
+      if (ms !== null) conectadoDesde = new Date(Date.now() - ms).toISOString();
+    }
+
+    return { online, desde, conectadoDesde };
   } catch (e) {
     if (conn) try { conn.close(); } catch {}
     return { error: 'No se pudo conectar con el MikroTik: ' + e.message };
@@ -70,17 +89,18 @@ async function consultarOlt(cliente) {
     const config = configOlt(cliente.ciudad);
     const comandos = comandosEnInterfazPon(
       cliente.olt_puerto_pon,
-      [`show onu state ${cliente.olt_onu_id}`],
+      [`show onu ${cliente.olt_onu_id} optical_info`, `show onu state ${cliente.olt_onu_id}`],
       config.enablePassword
     );
     const salida = await ejecutarComandosOlt(config, comandos);
     const errorCli = detectarErrorCli(salida);
+    const optico = parseOpticalInfo(salida);
     const estado = parseOnuState(salida);
 
-    if (errorCli && !estado.encontrado) {
+    if (errorCli && optico.rxDbm === null && !estado.encontrado) {
       return { error: `La OLT respondió con un error: "${errorCli}".` };
     }
-    return estado;
+    return { ...optico, nivelRx: evaluarRx(optico.rxDbm), ...estado };
   } catch (e) {
     return { error: 'No se pudo conectar con la OLT: ' + e.message };
   }

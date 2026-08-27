@@ -78,3 +78,25 @@ export async function buscarInterfazPppoeConConexion(conn, usuario) {
   const match = dinamicas.find((i) => (i.name || '').includes(usuario));
   return match ? match.name : null;
 }
+
+// El campo "uptime" que devuelve "/ppp/active/print" viene en el formato de
+// duración propio de RouterOS, ej. "4h30m20s", "1d20h44m6s" o "3w2d1h"
+// (semanas/días/horas/minutos/segundos, cada parte opcional). Se convierte a
+// milisegundos para poder calcular desde qué hora exacta está conectada la
+// sesión (restándoselo a "ahora").
+export function msDesdeUptimeRouteros(uptime) {
+  if (!uptime) return null;
+  const m = String(uptime).match(
+    /^(?:(\d+)w)?(?:(\d+)d)?(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?(?:(\d+)ms)?$/
+  );
+  if (!m) return null;
+  const [, semanas, dias, horas, minutos, segundos] = m;
+  if (!semanas && !dias && !horas && !minutos && !segundos) return null;
+  return (
+    (Number(semanas) || 0) * 7 * 24 * 60 * 60 * 1000 +
+    (Number(dias) || 0) * 24 * 60 * 60 * 1000 +
+    (Number(horas) || 0) * 60 * 60 * 1000 +
+    (Number(minutos) || 0) * 60 * 1000 +
+    (Number(segundos) || 0) * 1000
+  );
+}

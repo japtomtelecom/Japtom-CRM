@@ -682,15 +682,27 @@ function PanelEstadoConexion({ cliente }) {
             {estado.pppoe?.error ? (
               <p className="text-sm" style={{ color: '#791F1F' }}>⚠️ {estado.pppoe.error}</p>
             ) : (
-              <p className="text-sm font-semibold">
-                {estado.pppoe.online ? '🟢 Conectado' : '🔴 Desconectado'}
-                {!estado.pppoe.online && estado.pppoe.desde && (
-                  <span className="font-normal text-brand-400">
-                    {' '}
-                    · desde hace {formatearDuracion(estado.pppoe.desde)}
-                  </span>
+              <>
+                <p className="text-sm font-semibold">
+                  {estado.pppoe.online ? '🟢 Conectado' : '🔴 Desconectado'}
+                  {!estado.pppoe.online && estado.pppoe.desde && (
+                    <span className="font-normal text-brand-400">
+                      {' '}
+                      · desde hace {formatearDuracion(estado.pppoe.desde)}
+                    </span>
+                  )}
+                </p>
+                {estado.pppoe.online && estado.pppoe.conectadoDesde && (
+                  <p className="text-xs text-brand-400 mt-1">
+                    Conectado desde{' '}
+                    {new Date(estado.pppoe.conectadoDesde).toLocaleString('es-BO', {
+                      dateStyle: 'short',
+                      timeStyle: 'short',
+                    })}{' '}
+                    (hace {formatearDuracion(estado.pppoe.conectadoDesde)})
+                  </p>
                 )}
-              </p>
+              </>
             )}
           </div>
 
@@ -702,9 +714,35 @@ function PanelEstadoConexion({ cliente }) {
               ) : estado.olt && estado.olt.encontrado === false ? (
                 <p className="text-sm text-brand-400">No se pudo leer el estado de la ONU.</p>
               ) : (
-                <p className="text-sm font-semibold">
-                  {estado.olt?.online ? '🟢 En línea' : '🔴 Desconectada'}
-                </p>
+                <>
+                  <p className="text-sm font-semibold">
+                    {estado.olt?.online ? '🟢 En línea' : '🔴 Desconectada'}
+                  </p>
+                  {(estado.olt?.rxDbm !== null && estado.olt?.rxDbm !== undefined) && (
+                    <div className="grid grid-cols-3 gap-2 mt-2">
+                      <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                        <p className="text-xs text-brand-400">Rx</p>
+                        <p
+                          className="text-sm font-semibold"
+                          style={{ color: COLOR_NIVEL_OLT[estado.olt.nivelRx] || '#666' }}
+                        >
+                          {estado.olt.rxDbm}
+                        </p>
+                        <p className="text-xs text-brand-400">dBm</p>
+                      </div>
+                      <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                        <p className="text-xs text-brand-400">Tx</p>
+                        <p className="text-sm font-semibold">{estado.olt.txDbm ?? '—'}</p>
+                        <p className="text-xs text-brand-400">dBm</p>
+                      </div>
+                      <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                        <p className="text-xs text-brand-400">Temp.</p>
+                        <p className="text-sm font-semibold">{estado.olt.temperaturaC ?? '—'}</p>
+                        <p className="text-xs text-brand-400">°C</p>
+                      </div>
+                    </div>
+                  )}
+                </>
               )}
             </div>
           )}
