@@ -1103,6 +1103,30 @@ export default function FichaClientePage() {
 
         <PanelApuntes clienteId={cliente.id} userEmail={user?.email} />
 
+        <div className="card p-5">
+          <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
+          {pagos.length === 0 ? (
+            <p className="text-sm text-brand-400">Sin pagos registrados.</p>
+          ) : (
+            <ul className="space-y-2 text-sm">
+              {pagos.map((p) => (
+                <li key={p.id} className="border-b border-brand-50 pb-2">
+                  <div className="flex justify-between">
+                    <span>{new Date(p.fecha_pago).toLocaleDateString('es-BO')}</span>
+                    <span className="font-medium">{formatBs(p.monto)}</span>
+                  </div>
+                  <div className="text-xs text-brand-400">
+                    {p.tipo_pago || 'Mensual'}
+                    {p.mes_corresponde
+                      ? ' · ' + new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
+                      : ''}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
         {isAdmin && opticoOlt && (
           <>
             {/* Espaciador solo visible en pantallas medianas+, para que esta
@@ -1261,30 +1285,6 @@ export default function FichaClientePage() {
                   <input className="input" value={form.olt_sn || ''} onChange={(e) => setForm({ ...form, olt_sn: e.target.value })} />
                 </div>
               </div>
-            )}
-          </div>
-
-          <div className="card p-5">
-            <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
-            {pagos.length === 0 ? (
-              <p className="text-sm text-brand-400">Sin pagos registrados.</p>
-            ) : (
-              <ul className="space-y-2 text-sm">
-                {pagos.map((p) => (
-                  <li key={p.id} className="border-b border-brand-50 pb-2">
-                    <div className="flex justify-between">
-                      <span>{new Date(p.fecha_pago).toLocaleDateString('es-BO')}</span>
-                      <span className="font-medium">{formatBs(p.monto)}</span>
-                    </div>
-                    <div className="text-xs text-brand-400">
-                      {p.tipo_pago || 'Mensual'}
-                      {p.mes_corresponde
-                        ? ' · ' + new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
-                        : ''}
-                    </div>
-                  </li>
-                ))}
-              </ul>
             )}
           </div>
         </div>
