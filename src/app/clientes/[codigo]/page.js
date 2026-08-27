@@ -1163,6 +1163,14 @@ export default function FichaClientePage() {
         <div className="md:col-span-1 space-y-6">
           {isAdmin && !editando && <PanelEstadoConexion cliente={cliente} />}
 
+          {isAdmin && !editando && cliente.pppoe_usuario && (
+            <GraficoTrafico
+              titulo={`📡 Tráfico en tiempo real — ${cliente.nombre}`}
+              endpoint="/api/mikrotik/trafico-cliente"
+              body={{ clienteId: cliente.id }}
+            />
+          )}
+
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Configuración MikroTik</h2>
 
@@ -1216,12 +1224,8 @@ export default function FichaClientePage() {
 
           {isAdmin && !editando && <PanelMikrotik cliente={cliente} onRecargar={cargar} />}
 
-          {isAdmin && !editando && cliente.pppoe_usuario && (
-            <GraficoTrafico
-              titulo={`📡 Tráfico en tiempo real — ${cliente.nombre}`}
-              endpoint="/api/mikrotik/trafico-cliente"
-              body={{ clienteId: cliente.id }}
-            />
+          {isAdmin && !editando && (
+            <PanelOlt cliente={cliente} onRecargar={cargar} optico={opticoOlt} setOptico={setOpticoOlt} />
           )}
 
           <div className="card p-5">
@@ -1259,10 +1263,6 @@ export default function FichaClientePage() {
               </div>
             )}
           </div>
-
-          {isAdmin && !editando && (
-            <PanelOlt cliente={cliente} onRecargar={cargar} optico={opticoOlt} setOptico={setOpticoOlt} />
-          )}
 
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
