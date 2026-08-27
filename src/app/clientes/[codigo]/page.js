@@ -1164,12 +1164,6 @@ export default function FichaClientePage() {
 
         {isAdmin && opticoOlt && (
           <>
-            {/* Espaciador solo visible en pantallas medianas+, para que esta
-                tarjeta arranque más abajo (a la altura de "Configuración
-                OLT" de la columna derecha) y no quede pegada justo debajo de
-                "Datos del cliente". No afecta el acomodo en celular, donde
-                todo se apila en una sola columna. */}
-            <div className="hidden md:block" style={{ height: 200 }} />
             <div className="card p-5">
               <h2 className="font-semibold text-brand-700 mb-4">📶 Potencia óptica — {cliente.nombre}</h2>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-4">
