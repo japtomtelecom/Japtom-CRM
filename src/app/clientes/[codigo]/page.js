@@ -438,6 +438,33 @@ const COLOR_NIVEL_OLT = {
   desconocido: '#666',
 };
 
+// Enlace para abrir la interfaz web del equipo del cliente en esa IP
+// (https://<ip>:80/). Es su propio componente porque se usa en dos lugares
+// (Configuración MikroTik y el resultado de "Estado de conexión") y así
+// queda igual de grande y clicable en los dos.
+function EnlaceIp({ ip }) {
+  if (!ip) return '—';
+  return (
+    <a
+      href={`https://${ip}:80/`}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-1 hover:underline"
+      style={{
+        fontSize: 15,
+        fontWeight: 600,
+        padding: '5px 12px',
+        borderRadius: 6,
+        background: '#E1F5EE',
+        color: '#085041',
+      }}
+      title="Abrir la interfaz web del equipo en esa IP"
+    >
+      🌐 {ip}
+    </a>
+  );
+}
+
 function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
   const [accionEnCurso, setAccionEnCurso] = useState(null);
   const [resultado, setResultado] = useState(null);
@@ -703,17 +730,11 @@ function PanelEstadoConexion({ cliente }) {
                   </p>
                 )}
                 {estado.pppoe.online && estado.pppoe.ip && (
-                  <p className="text-xs text-brand-400 mt-1">
+                  <p className="text-xs text-brand-400 mt-2">
                     IP asignada:{' '}
-                    <a
-                      href={`http://${estado.pppoe.ip}:8080`}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="text-brand-600 hover:underline font-mono"
-                      title="Abrir la interfaz web del equipo en esa IP (puerto 8080)"
-                    >
-                      {estado.pppoe.ip} ↗
-                    </a>
+                    <span className="block mt-1">
+                      <EnlaceIp ip={estado.pppoe.ip} />
+                    </span>
                   </p>
                 )}
               </>
@@ -1240,19 +1261,7 @@ export default function FichaClientePage() {
                 <div>
                   <span className="text-brand-400">IP asignada</span>
                   <p className="font-mono font-medium">
-                    {cliente.ip_asignada ? (
-                      <a
-                        href={`http://${cliente.ip_asignada}:8080`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-brand-600 hover:underline"
-                        title="Abrir la interfaz web del equipo en esa IP (puerto 8080)"
-                      >
-                        {cliente.ip_asignada} ↗
-                      </a>
-                    ) : (
-                      '—'
-                    )}
+                    <EnlaceIp ip={cliente.ip_asignada} />
                   </p>
                 </div>
               </div>
