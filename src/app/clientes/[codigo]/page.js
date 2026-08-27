@@ -946,7 +946,7 @@ export default function FichaClientePage() {
             ← Volver a Clientes
           </Link>
           <h1 className="font-display text-2xl font-bold text-brand-800 mt-1">{cliente.nombre}</h1>
-          <p className="text-brand-500 text-sm font-mono">{cliente.codigo}</p>
+          <p className="text-brand-500 text-2xl font-bold font-mono">{cliente.codigo}</p>
         </div>
         <div className="flex gap-2 flex-wrap">
           {wa && (
