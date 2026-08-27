@@ -702,6 +702,20 @@ function PanelEstadoConexion({ cliente }) {
                     (hace {formatearDuracion(estado.pppoe.conectadoDesde)})
                   </p>
                 )}
+                {estado.pppoe.online && estado.pppoe.ip && (
+                  <p className="text-xs text-brand-400 mt-1">
+                    IP asignada:{' '}
+                    <a
+                      href={`http://${estado.pppoe.ip}:8080`}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-brand-600 hover:underline font-mono"
+                      title="Abrir la interfaz web del equipo en esa IP (puerto 8080)"
+                    >
+                      {estado.pppoe.ip} ↗
+                    </a>
+                  </p>
+                )}
               </>
             )}
           </div>

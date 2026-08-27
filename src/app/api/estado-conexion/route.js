@@ -55,7 +55,7 @@ async function consultarPppoe(supabaseAdmin, cliente, clienteId) {
 
     const activos = await conn.write('/ppp/active/print', [
       `?name=${cliente.pppoe_usuario}`,
-      '=.proplist=name,uptime',
+      '=.proplist=name,uptime,address',
     ]);
     conn.close();
 
@@ -68,13 +68,21 @@ async function consultarPppoe(supabaseAdmin, cliente, clienteId) {
     // que se usa ese para calcular la hora exacta de conexión. El
     // historial (`desde`) solo hace falta para el caso "desconectado", que
     // el MikroTik no recuerda una vez que la sesión ya no está activa.
+    //
+    // El campo "address" de esa misma sesión activa es la IP que el
+    // MikroTik le asignó AHORA MISMO — más confiable que el campo "IP
+    // asignada" guardado a mano en la ficha (que puede estar desactualizado
+    // si es dinámica), así que se usa esta como fuente de verdad cuando el
+    // cliente está conectado.
     let conectadoDesde = null;
+    let ip = null;
     if (online) {
       const ms = msDesdeUptimeRouteros(activos[0].uptime);
       if (ms !== null) conectadoDesde = new Date(Date.now() - ms).toISOString();
+      ip = activos[0].address || null;
     }
 
-    return { online, desde, conectadoDesde };
+    return { online, desde, conectadoDesde, ip };
   } catch (e) {
     if (conn) try { conn.close(); } catch {}
     return { error: 'No se pudo conectar con el MikroTik: ' + e.message };
