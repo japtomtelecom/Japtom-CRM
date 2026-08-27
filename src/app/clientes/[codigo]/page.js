@@ -945,8 +945,10 @@ export default function FichaClientePage() {
           <Link href="/clientes" className="text-brand-500 text-sm hover:underline">
             ← Volver a Clientes
           </Link>
-          <h1 className="font-display text-2xl font-bold text-brand-800 mt-1">{cliente.nombre}</h1>
-          <p className="text-brand-500 text-2xl font-bold font-mono">{cliente.codigo}</p>
+          <div className="flex items-baseline gap-3 flex-wrap mt-1">
+            <h1 className="font-display text-2xl font-bold text-brand-800">{cliente.nombre}</h1>
+            <p className="text-brand-500 text-2xl font-bold font-mono">{cliente.codigo}</p>
+          </div>
         </div>
         <div className="flex gap-2 flex-wrap">
           {wa && (
