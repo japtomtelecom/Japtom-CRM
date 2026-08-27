@@ -170,17 +170,6 @@ export default function ClientesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [diaPagoFiltro]);
 
-  // Si el día de pago elegido no existe para la ciudad seleccionada (ej.
-  // tenías "Día 11" elegido viendo El Alto y cambiás a Tarija, que no tiene
-  // ningún cliente con ese día), se limpia el filtro en vez de dejarlo
-  // seleccionado mostrando 0 candidatos sin explicación.
-  useEffect(() => {
-    if (diaPagoFiltro !== 'todos' && !diasDisponibles.includes(Number(diaPagoFiltro))) {
-      setDiaPagoFiltro('todos');
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [ciudadFiltro, diasDisponibles]);
-
   function toggleSeleccionMasivo(id) {
     setSeleccionMasivo((prev) => {
       const next = new Set(prev);
@@ -226,6 +215,19 @@ export default function ClientesPage() {
     });
     return Array.from(set).sort((a, b) => a - b);
   }, [clientesDeLaCiudad]);
+
+  // Si el día de pago elegido no existe para la ciudad seleccionada (ej.
+  // tenías "Día 11" elegido viendo El Alto y cambiás a Tarija, que no tiene
+  // ningún cliente con ese día), se limpia el filtro en vez de dejarlo
+  // seleccionado mostrando 0 candidatos sin explicación. (Este efecto tiene
+  // que ir DESPUÉS de declarar `diasDisponibles` — si no, "Cannot access
+  // 'diasDisponibles' before initialization" rompe toda la página.)
+  useEffect(() => {
+    if (diaPagoFiltro !== 'todos' && !diasDisponibles.includes(Number(diaPagoFiltro))) {
+      setDiaPagoFiltro('todos');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ciudadFiltro, diasDisponibles]);
 
   const filtrados = useMemo(() => {
     let lista = clientes;
