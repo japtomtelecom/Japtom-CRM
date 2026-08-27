@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/respaldo-semanal",
       "schedule": "0 10 * * 1"
+    },
+    {
+      "path": "/api/cron/estado-pppoe",
+      "schedule": "*/30 * * * *"
     }
   ]
 }

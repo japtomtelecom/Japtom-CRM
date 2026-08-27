@@ -581,6 +581,143 @@ function PanelOlt({ cliente, onRecargar, optico, setOptico }) {
   );
 }
 
+// Convierte una fecha ISO a un texto corto tipo "3h 12min" / "2d 4h", para
+// mostrar "desde hace cuánto" está desconectado un cliente.
+function formatearDuracion(desdeIso) {
+  if (!desdeIso) return null;
+  const ms = Date.now() - new Date(desdeIso).getTime();
+  if (ms < 60000) return 'menos de 1 min';
+
+  const minutos = Math.floor(ms / 60000);
+  if (minutos < 60) return `${minutos} min`;
+
+  const horas = Math.floor(minutos / 60);
+  const minRestantes = minutos % 60;
+  if (horas < 24) return `${horas}h ${minRestantes}min`;
+
+  const dias = Math.floor(horas / 24);
+  const horasRestantes = horas % 24;
+  return `${dias}d ${horasRestantes}h`;
+}
+
+// Botón de "Estado de conexión": consulta en vivo si el cliente está
+// conectado por PPPoE (MikroTik, las dos sedes) y, en Tarija, además el
+// estado de su ONU en la OLT (V-Sol) — en El Alto esa OLT todavía no está
+// integrada al CRM (ver claude/estado-integracion-olt.md en el proyecto),
+// así que ahí solo se muestra el PPPoE. Si el PPPoE está desconectado,
+// muestra desde hace cuánto (usando el historial de `estado_pppoe`).
+function PanelEstadoConexion({ cliente }) {
+  const [cargando, setCargando] = useState(false);
+  const [estado, setEstado] = useState(null);
+  const [error, setError] = useState(null);
+
+  const esTarija = (cliente.ciudad || 'El Alto') === 'Tarija';
+
+  async function consultar() {
+    if (!confirm(`¿Confirmas consultar el estado de conexión de ${cliente.nombre}?`)) return;
+    setCargando(true);
+    setError(null);
+    setEstado(null);
+    try {
+      const json = await llamarApiAdmin('/api/estado-conexion', { clienteId: cliente.id });
+      setEstado(json);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setCargando(false);
+    }
+  }
+
+  function aceptar() {
+    setEstado(null);
+    setError(null);
+  }
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-brand-700 mb-3">🔌 Estado de conexión</h2>
+
+      {!cliente.pppoe_usuario ? (
+        <p className="text-xs text-amber-600 mb-3">
+          Este cliente no tiene "Usuario PPPoE" configurado. Completalo en "Editar" antes de usar esta función.
+        </p>
+      ) : !esTarija ? (
+        <p className="text-xs text-brand-400 mb-3">
+          En El Alto solo se muestra el estado del PPPoE — la OLT de esta sede todavía no está integrada al CRM.
+        </p>
+      ) : null}
+
+      <button
+        onClick={consultar}
+        disabled={cargando || !cliente.pppoe_usuario}
+        className="btn-secondary text-sm"
+        style={{ width: '100%' }}
+      >
+        {cargando ? 'Consultando…' : '🔌 Ver estado de conexión'}
+      </button>
+
+      {error && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 12px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            background: '#FCEBEB',
+            color: '#791F1F',
+          }}
+        >
+          <p style={{ margin: 0 }}>⚠️ {error}</p>
+          <button onClick={aceptar} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+            Aceptar
+          </button>
+        </div>
+      )}
+
+      {estado && (
+        <div className="mt-3 space-y-2">
+          <div className="rounded-lg p-3" style={{ background: '#F5F7F6' }}>
+            <p className="text-xs text-brand-400 mb-1">PPPoE (MikroTik)</p>
+            {estado.pppoe?.error ? (
+              <p className="text-sm" style={{ color: '#791F1F' }}>⚠️ {estado.pppoe.error}</p>
+            ) : (
+              <p className="text-sm font-semibold">
+                {estado.pppoe.online ? '🟢 Conectado' : '🔴 Desconectado'}
+                {!estado.pppoe.online && estado.pppoe.desde && (
+                  <span className="font-normal text-brand-400">
+                    {' '}
+                    · desde hace {formatearDuracion(estado.pppoe.desde)}
+                  </span>
+                )}
+              </p>
+            )}
+          </div>
+
+          {esTarija && (
+            <div className="rounded-lg p-3" style={{ background: '#F5F7F6' }}>
+              <p className="text-xs text-brand-400 mb-1">OLT (V-Sol)</p>
+              {estado.olt?.error ? (
+                <p className="text-sm" style={{ color: '#791F1F' }}>⚠️ {estado.olt.error}</p>
+              ) : estado.olt && estado.olt.encontrado === false ? (
+                <p className="text-sm text-brand-400">No se pudo leer el estado de la ONU.</p>
+              ) : (
+                <p className="text-sm font-semibold">
+                  {estado.olt?.online ? '🟢 En línea' : '🔴 Desconectada'}
+                </p>
+              )}
+            </div>
+          )}
+
+          <button onClick={aceptar} className="btn-primary text-xs">
+            Aceptar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FichaClientePage() {
   const params = useParams();
   const router = useRouter();
@@ -986,6 +1123,8 @@ export default function FichaClientePage() {
         </div>
 
         <div className="md:col-span-1 space-y-6">
+          {isAdmin && !editando && <PanelEstadoConexion cliente={cliente} />}
+
           <div className="card p-5">
             <h2 className="font-semibold text-brand-700 mb-3">Configuración MikroTik</h2>
 
