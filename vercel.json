@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/cron/estado-pppoe",
-      "schedule": "*/30 * * * *"
+      "schedule": "0 8 * * *"
     }
   ]
 }

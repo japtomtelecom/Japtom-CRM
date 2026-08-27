@@ -7,19 +7,20 @@ import { configMikrotik } from '@/lib/mikrotikConfig';
 // está desconectado" que se ve en la ficha del cliente siga siendo preciso
 // aunque nadie haya abierto esa ficha justo cuando se cortó la conexión.
 //
-// Nota sobre la frecuencia: este cron está registrado en vercel.json con
-// una periodicidad de minutos. Si el proyecto está en el plan gratuito
-// ("Hobby") de Vercel, Vercel puede limitar los Cron Jobs a como mucho una
-// vez al día, y este archivo simplemente no se ejecutaría tan seguido como
-// dice vercel.json (sin dar ningún error, solo no se llama). El botón "Ver
-// estado de conexión" de la ficha (src/app/api/estado-conexion/route.js) NO
-// depende de este cron para funcionar — hace su propia consulta en vivo
-// cada vez que se usa, y de paso también actualiza `estado_pppoe`, así que
-// el historial igual se va completando con el uso normal del CRM. Si hace
-// falta una actualización más seguida que una vez al día y el plan de
-// Vercel no lo permite, se puede llamar a esta misma URL desde un servicio
-// externo gratuito (ej. cron-job.org o un GitHub Action programado) usando
-// el mismo CRON_SECRET como token "Bearer".
+// Nota sobre la frecuencia: el proyecto está en el plan gratuito ("Hobby")
+// de Vercel, que limita los Cron Jobs a como mucho una vez al día — por eso
+// vercel.json lo registra con "0 8 * * *" (una vez por día, 8:00 UTC = 4:00
+// hora de Bolivia) en vez de cada pocos minutos. El botón "Ver estado de
+// conexión" de la ficha (src/app/api/estado-conexion/route.js) NO depende
+// de este cron para funcionar — hace su propia consulta en vivo cada vez
+// que se usa, y de paso también actualiza `estado_pppoe`, así que el
+// historial se va completando con el uso normal del CRM durante el día; este
+// cron diario es solo un respaldo para los clientes que nadie revisó ese
+// día. Si en el futuro se quiere una actualización más seguida sin pasar al
+// plan Pro de Vercel, se puede llamar a esta misma URL desde un servicio
+// externo gratuito (ej. cron-job.org o un GitHub Action programado cada
+// pocos minutos) usando el mismo CRON_SECRET como token "Bearer" — no
+// requiere tocar este código, solo configurar el disparador externo.
 export const maxDuration = 60;
 
 function clienteAdmin() {
