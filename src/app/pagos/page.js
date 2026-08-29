@@ -39,10 +39,11 @@ function PagosPageInner() {
   const [tipoPago, setTipoPago] = useState('Mensual');
   const [mesesPersonalizado, setMesesPersonalizado] = useState(2);
   const [mesCorresponde, setMesCorresponde] = useState(mesActualISO());
+  const [facturado, setFacturado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
   const [editandoId, setEditandoId] = useState(null);
-  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1 });
+  const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1, con_factura: false });
 
   async function cargarPagos() {
     let query = supabase
@@ -104,7 +105,7 @@ function PagosPageInner() {
 
     supabase
       .from('v_clientes_estado')
-      .select('id, codigo, nombre, precio, telefono, activo, estado, plan, dia_pago')
+      .select('id, codigo, nombre, precio, telefono, activo, estado, plan, dia_pago, factura')
       .eq('id', clienteId)
       .single()
       .then(({ data }) => {
@@ -112,6 +113,7 @@ function PagosPageInner() {
         setSeleccionado(data);
         setBusqueda(data.nombre);
         setMonto(data.precio || '');
+        setFacturado(!!data.factura);
         if (mes) setMesCorresponde(mes);
       });
   }, [searchParams]);
@@ -124,6 +126,7 @@ function PagosPageInner() {
       tipo_pago: p.tipo_pago || 'Mensual',
       mes_corresponde: (p.mes_corresponde || p.fecha_pago).slice(0, 7),
       meses_cubiertos: p.meses_cubiertos || 1,
+      con_factura: !!p.con_factura,
     });
   }
 
@@ -137,6 +140,7 @@ function PagosPageInner() {
         tipo_pago: edicion.tipo_pago,
         mes_corresponde: `${edicion.mes_corresponde}-01`,
         meses_cubiertos: mesesCubiertos,
+        con_factura: edicion.con_factura,
       })
       .eq('id', id);
     if (error) {
@@ -144,18 +148,6 @@ function PagosPageInner() {
       return;
     }
     setEditandoId(null);
-    cargarPagos();
-  }
-
-  async function toggleFacturaPago(id, valorActual) {
-    const { error } = await supabase
-      .from('pagos')
-      .update({ con_factura: !valorActual })
-      .eq('id', id);
-    if (error) {
-      setMsg('Error al actualizar factura: ' + error.message);
-      return;
-    }
     cargarPagos();
   }
 
@@ -179,7 +171,7 @@ function PagosPageInner() {
     }
     let query = supabase
       .from('v_clientes_estado')
-      .select('id, codigo, nombre, precio, telefono, activo, estado, plan, dia_pago')
+      .select('id, codigo, nombre, precio, telefono, activo, estado, plan, dia_pago, factura')
       .ilike('nombre', `%${q}%`)
       .limit(8);
 
@@ -219,6 +211,7 @@ function PagosPageInner() {
       tipo_pago: tipoPago,
       mes_corresponde: `${mesCorresponde}-01`,
       meses_cubiertos: mesesCubiertos,
+      con_factura: facturado,
     });
     setGuardando(false);
     if (error) {
@@ -233,6 +226,7 @@ function PagosPageInner() {
     setTipoPago('Mensual');
     setMesesPersonalizado(2);
     setMesCorresponde(mesActualISO());
+    setFacturado(false);
     if (pagina !== 1) {
       setPagina(1);
     } else {
@@ -269,6 +263,7 @@ function PagosPageInner() {
                         setMonto(c.precio || '');
                         setBusqueda(c.nombre);
                         setClientes([]);
+                        setFacturado(!!c.factura);
                       }}
                       className="block w-full text-left px-3 py-2 text-sm hover:bg-brand-50"
                     >
@@ -328,6 +323,29 @@ function PagosPageInner() {
             <p className="text-xs text-brand-400 -mt-1">
               El mes es el primero que cubre el pago — Semestral/Anual calculan solos los siguientes.
             </p>
+
+            <button
+              type="button"
+              onClick={() => setFacturado(!facturado)}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: 8,
+                border: facturado ? '2px solid #085041' : '2px solid #ddd',
+                background: facturado ? '#E1F5EE' : '#fafafa',
+                color: facturado ? '#085041' : '#666',
+                fontWeight: 600,
+                fontSize: 15,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 10,
+                cursor: 'pointer',
+              }}
+            >
+              {facturado ? '🧾 ✅ Requiere factura' : '🧾 Requiere factura'}
+            </button>
+
             <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
               {guardando ? 'Registrando…' : 'Registrar pago'}
             </button>
@@ -424,8 +442,8 @@ function PagosPageInner() {
                         <td className="py-2 text-center">
                           <input
                             type="checkbox"
-                            checked={!!p.con_factura}
-                            onChange={() => toggleFacturaPago(p.id, p.con_factura)}
+                            checked={!!edicion.con_factura}
+                            onChange={(e) => setEdicion({ ...edicion, con_factura: e.target.checked })}
                           />
                         </td>
                         {isAdmin && (
@@ -456,12 +474,8 @@ function PagosPageInner() {
                             ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
                             : '—'}
                         </td>
-                        <td className="py-2 text-center">
-                          <input
-                            type="checkbox"
-                            checked={!!p.con_factura}
-                            onChange={() => toggleFacturaPago(p.id, p.con_factura)}
-                          />
+                        <td className="py-2 text-center" title={p.con_factura ? 'Facturado' : 'Sin facturar'}>
+                          {p.con_factura ? '🧾' : '—'}
                         </td>
                         <td className="py-2 text-right whitespace-nowrap">
                           {waPago && (
