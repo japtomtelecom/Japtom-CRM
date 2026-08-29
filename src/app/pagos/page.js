@@ -48,7 +48,7 @@ function PagosPageInner() {
     let query = supabase
       .from('pagos')
       .select(
-        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, clientes!inner(codigo, nombre, telefono, activo, plan, precio, dia_pago, ciudad)',
+        'id, fecha_pago, monto, tipo_pago, mes_corresponde, meses_cubiertos, cliente_id, con_factura, clientes!inner(codigo, nombre, telefono, activo, plan, precio, dia_pago, ciudad)',
         { count: 'exact' }
       )
       .order('created_at', { ascending: false })
@@ -147,6 +147,18 @@ function PagosPageInner() {
     cargarPagos();
   }
 
+  async function toggleFacturaPago(id, valorActual) {
+    const { error } = await supabase
+      .from('pagos')
+      .update({ con_factura: !valorActual })
+      .eq('id', id);
+    if (error) {
+      setMsg('Error al actualizar factura: ' + error.message);
+      return;
+    }
+    cargarPagos();
+  }
+
   async function borrarPago(id, montoTexto) {
     if (!confirm(`¿Borrar el pago de ${montoTexto}? Esta acción no se puede deshacer.`)) return;
     if (!confirm('Confirma una vez más: ¿SEGURO que quieres borrar este pago definitivamente?')) return;
@@ -177,26 +189,6 @@ function PagosPageInner() {
 
     const { data } = await query;
     setClientes(data || []);
-  }
-async function marcarAlDia() {
-    if (!seleccionado) return;
-    if (!confirm(`¿Marcar a "${seleccionado.nombre}" como Al día (vence en 1 mes desde hoy), sin registrar un pago?`)) return;
-    const fecha1MesDespues = new Date();
-    fecha1MesDespues.setMonth(fecha1MesDespues.getMonth() + 1);
-    const fechaISO = fecha1MesDespues.toISOString().slice(0, 10);
-
-    const { error } = await supabase
-      .from('clientes')
-      .update({ fecha_vencimiento_manual: fechaISO })
-      .eq('id', seleccionado.id);
-
-    if (error) {
-      setMsg('Error: ' + error.message);
-      return;
-    }
-    setMsg(`"${seleccionado.nombre}" marcado como Al día hasta ${fecha1MesDespues.toLocaleDateString('es-BO')}.`);
-    setSeleccionado(null);
-    setBusqueda('');
   }
 
   async function registrar(e) {
@@ -336,16 +328,8 @@ async function marcarAlDia() {
             <p className="text-xs text-brand-400 -mt-1">
               El mes es el primero que cubre el pago — Semestral/Anual calculan solos los siguientes.
             </p>
-           <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
+            <button disabled={!seleccionado || guardando} type="submit" className="btn-primary w-full">
               {guardando ? 'Registrando…' : 'Registrar pago'}
-            </button>
-            <button
-              type="button"
-              disabled={!seleccionado}
-              onClick={marcarAlDia}
-              className="btn-secondary w-full"
-            >
-              ✅ Marcar al día (sin registrar pago)
             </button>
             {msg && <p className="text-sm text-brand-600">{msg}</p>}
           </form>
@@ -370,6 +354,7 @@ async function marcarAlDia() {
                 <th className="py-2">Monto</th>
                 <th className="py-2">Tipo</th>
                 <th className="py-2">Mes</th>
+                <th className="py-2 text-center" title="¿Se emitió factura por este pago?">Factura</th>
                 <th className="py-2"></th>
               </tr>
             </thead>
@@ -436,6 +421,13 @@ async function marcarAlDia() {
                             />
                           )}
                         </td>
+                        <td className="py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={!!p.con_factura}
+                            onChange={() => toggleFacturaPago(p.id, p.con_factura)}
+                          />
+                        </td>
                         {isAdmin && (
                           <td className="py-2 text-right whitespace-nowrap align-top">
                             <button onClick={() => guardarEdicion(p.id)} className="text-brand-600 hover:underline text-xs mr-2">
@@ -463,6 +455,13 @@ async function marcarAlDia() {
                           {p.mes_corresponde
                             ? parsearFechaLocal(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'short', year: 'numeric' })
                             : '—'}
+                        </td>
+                        <td className="py-2 text-center">
+                          <input
+                            type="checkbox"
+                            checked={!!p.con_factura}
+                            onChange={() => toggleFacturaPago(p.id, p.con_factura)}
+                          />
                         </td>
                         <td className="py-2 text-right whitespace-nowrap">
                           {waPago && (
