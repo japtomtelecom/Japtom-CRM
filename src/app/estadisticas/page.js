@@ -18,7 +18,7 @@ export default function EstadisticasPage() {
   useEffect(() => {
     supabase
       .from('pagos')
-      .select('monto, fecha_pago, cliente_id, clientes(ciudad)')
+      .select('monto, fecha_pago, cliente_id, con_factura, clientes(ciudad)')
       .then(({ data }) => setPagos(data || []));
   }, []);
 
@@ -34,19 +34,43 @@ export default function EstadisticasPage() {
     pagosF.forEach((p) => {
       const f = parsearFechaLocal(p.fecha_pago);
       const clave = `${f.getFullYear()}-${String(f.getMonth() + 1).padStart(2, '0')}`;
-      if (!porMes[clave]) porMes[clave] = { mes: clave, recaudado: 0, n_pagos: 0, clientesSet: new Set() };
-      porMes[clave].recaudado += Number(p.monto);
+      if (!porMes[clave]) {
+        porMes[clave] = {
+          mes: clave,
+          recaudado: 0,
+          facturado: 0,
+          no_facturado: 0,
+          n_pagos: 0,
+          clientesSet: new Set(),
+        };
+      }
+      const monto = Number(p.monto);
+      porMes[clave].recaudado += monto;
+      if (p.con_factura === true) {
+        porMes[clave].facturado += monto;
+      } else {
+        porMes[clave].no_facturado += monto;
+      }
       porMes[clave].n_pagos += 1;
       porMes[clave].clientesSet.add(p.cliente_id);
     });
 
     return Object.values(porMes)
-      .map((m) => ({ mes: m.mes, recaudado: m.recaudado, n_pagos: m.n_pagos, n_clientes: m.clientesSet.size }))
+      .map((m) => ({
+        mes: m.mes,
+        recaudado: m.recaudado,
+        facturado: m.facturado,
+        no_facturado: m.no_facturado,
+        n_pagos: m.n_pagos,
+        n_clientes: m.clientesSet.size,
+      }))
       .sort((a, b) => a.mes.localeCompare(b.mes));
   }, [pagos, ciudad]);
 
   const maxRecaudado = Math.max(1, ...filas.map((f) => Number(f.recaudado)));
   const totalAnio = filas.reduce((acc, f) => acc + Number(f.recaudado), 0);
+  const totalFacturado = filas.reduce((acc, f) => acc + Number(f.facturado), 0);
+  const totalNoFacturado = filas.reduce((acc, f) => acc + Number(f.no_facturado), 0);
   const totalPagos = filas.reduce((acc, f) => acc + Number(f.n_pagos), 0);
 
   return (
@@ -83,12 +107,14 @@ export default function EstadisticasPage() {
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div className="card overflow-x-auto mb-6">
         <table className="w-full text-sm">
           <thead>
             <tr className="text-left text-brand-500 border-b border-brand-100">
               <th className="p-3">Mes</th>
               <th className="p-3">Recaudado (Bs)</th>
+              <th className="p-3">Facturado (Bs)</th>
+              <th className="p-3">No facturado (Bs)</th>
               <th className="p-3">N° pagos</th>
               <th className="p-3">Clientes que pagaron</th>
             </tr>
@@ -100,6 +126,8 @@ export default function EstadisticasPage() {
                   {parsearFechaLocal(f.mes + '-01').toLocaleDateString('es-BO', { month: 'long', year: 'numeric' })}
                 </td>
                 <td className="p-3">{formatBs(f.recaudado)}</td>
+                <td className="p-3">{formatBs(f.facturado)}</td>
+                <td className="p-3">{formatBs(f.no_facturado)}</td>
                 <td className="p-3">{f.n_pagos}</td>
                 <td className="p-3">{f.n_clientes}</td>
               </tr>
@@ -107,6 +135,8 @@ export default function EstadisticasPage() {
             <tr className="font-semibold bg-brand-50">
               <td className="p-3">Total año</td>
               <td className="p-3">{formatBs(totalAnio)}</td>
+              <td className="p-3">{formatBs(totalFacturado)}</td>
+              <td className="p-3">{formatBs(totalNoFacturado)}</td>
               <td className="p-3">{totalPagos}</td>
               <td className="p-3"></td>
             </tr>
