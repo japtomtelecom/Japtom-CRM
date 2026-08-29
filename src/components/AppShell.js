@@ -14,6 +14,7 @@ const NAV = [
   { href: '/clientes', label: 'Clientes', icon: '👥' },
   { href: '/pagos', label: 'Pagos', icon: '💳' },
   { href: '/pagos/mensual', label: 'Registro mensual', icon: '📅' },
+  { href: '/trabajos-adicionales', label: 'Trabajos adicionales', icon: '🛠️' },
   { href: '/tickets', label: 'Tickets', icon: '🎫' },
   { href: '/estadisticas', label: 'Estadísticas', icon: '📈' },
   { href: '/planes', label: 'Planes', icon: '📶' },
@@ -35,7 +36,6 @@ export default function AppShell({ children }) {
     }
   }, [loading, user, router]);
 
-  // Usuario "Todas" sin sucursal elegida todavía → mandarlo a elegir
   useEffect(() => {
     if (user && listo && !esFija && !sucursalActiva) {
       router.replace('/elegir-sucursal');
@@ -56,7 +56,6 @@ export default function AppShell({ children }) {
   return (
     <div className="min-h-screen flex flex-col md:flex-row">
       <aside className="md:w-56 bg-brand-700 text-white flex flex-col md:flex-col shrink-0">
-        {/* Barra superior SOLO en celular: logo + selector de ciudad + cerrar sesión siempre visibles */}
         <div className="flex md:hidden items-center justify-between px-4 py-3 gap-2">
           <div className="flex items-center gap-2 min-w-0">
             {/* eslint-disable-next-line @next/next/no-img-element */}
