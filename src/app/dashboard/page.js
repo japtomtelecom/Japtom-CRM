@@ -36,7 +36,7 @@ export default function DashboardPage() {
     async function load() {
       const [{ data: c, error: e1 }, { data: p, error: e2 }] = await Promise.all([
         supabase.from('v_clientes_estado').select('*'),
-        supabase.from('pagos').select('monto, fecha_pago, tipo_pago, clientes(ciudad)'),
+        supabase.from('pagos').select('monto, fecha_pago, tipo_pago, clientes(ciudad, factura)'),
       ]);
       if (e1 || e2) setError((e1 || e2).message);
       setClientes(c || []);
@@ -66,6 +66,16 @@ export default function DashboardPage() {
     const ingresoInstalaciones = pagosInstalacion.reduce((a, p) => a + Number(p.monto), 0);
     const ticketPromedio = pagosMensualidad.length ? ingresoHistorico / pagosMensualidad.length : 0;
 
+    // Facturado / no facturado del mes actual, solo mensualidades de internet
+    // (no cuenta instalaciones ni trabajos adicionales, que son otro rubro).
+    const pagosMesActual = pagosMensualidad.filter((p) => esMesActual(p.fecha_pago));
+    const facturadoMes = pagosMesActual
+      .filter((p) => p.clientes?.factura === true)
+      .reduce((a, p) => a + Number(p.monto), 0);
+    const noFacturadoMes = pagosMesActual
+      .filter((p) => p.clientes?.factura !== true)
+      .reduce((a, p) => a + Number(p.monto), 0);
+
     return {
       total_clientes: clientesF.length,
       clientes_activos: clientesF.filter((c) => c.activo).length,
@@ -77,6 +87,8 @@ export default function DashboardPage() {
       ingreso_historico: ingresoHistorico,
       ingreso_instalaciones: ingresoInstalaciones,
       ticket_promedio: ticketPromedio,
+      facturado_mes: facturadoMes,
+      no_facturado_mes: noFacturadoMes,
     };
   }, [clientes, pagos, ciudad]);
 
@@ -116,6 +128,8 @@ export default function DashboardPage() {
           <StatCard label="Ingreso histórico (mensualidades)" value={formatBs(kpi.ingreso_historico)} />
           <StatCard label="Ingreso por instalaciones" value={formatBs(kpi.ingreso_instalaciones)} />
           <StatCard label="Ticket promedio" value={formatBs(kpi.ticket_promedio)} />
+          <StatCard label="Facturado (este mes, internet)" value={formatBs(kpi.facturado_mes)} />
+          <StatCard label="No facturado (este mes, internet)" value={formatBs(kpi.no_facturado_mes)} />
         </div>
       )}
 
