@@ -1,139 +1,204 @@
-import * as XLSX from 'xlsx';
-import { supabase } from './supabaseClient';
+'use client';
 
-const ETIQUETA_STATUS = {
-  pagado: 'Pagado',
-  no_vencido: 'Aún no vence',
-  por_vencer: 'Vencido (1-5 días)',
-  vencido: 'Vencido (+5 días)',
-};
+import { useEffect, useMemo, useState } from 'react';
+import AppShell from '@/components/AppShell';
+import GraficoTrafico from '@/components/GraficoTrafico';
+import PanelTraficoEnlaces from '@/components/PanelTraficoEnlaces';
+import { supabase } from '@/lib/supabaseClient';
+import { formatBs, parsearFechaLocal } from '@/lib/utils';
+import { useSucursalActiva } from '@/lib/useSucursalActiva';
+import { usePerfil } from '@/lib/usePerfil';
 
-export const CIUDADES = ['El Alto', 'Tarija'];
-
-function nombreMesCorto(periodo) {
-  const d = new Date(periodo.slice(0, 10) + 'T00:00:00');
-  return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
+function StatCard({ label, value, accent }) {
+  return (
+    <div className="card p-5">
+      <div className="text-brand-500 text-sm">{label}</div>
+      <div className={`text-2xl font-bold mt-1 ${accent ? 'text-accent' : 'text-brand-800'}`}>
+        {value}
+      </div>
+    </div>
+  );
 }
 
-// Exportado para reutilizarlo desde el respaldo automático semanal
-// (src/app/api/cron/respaldo-semanal/route.js) — misma lógica que el botón
-// manual "⬇️ Excel" de Configuración, sin duplicar código.
-export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTodo }) {
-  const clientes = clientesTodos.filter((c) => (c.ciudad || 'El Alto') === ciudad);
-  const pagos = pagosTodos.filter((p) => (p.clientes?.ciudad || 'El Alto') === ciudad);
-  const registroMensual = registroTodo.filter((r) => (r.ciudad || 'El Alto') === ciudad);
+export default function DashboardPage() {
+  const { sucursalActiva, esFija } = useSucursalActiva();
+  const { isAdmin } = usePerfil();
+  const [clientes, setClientes] = useState(null);
+  const [pagos, setPagos] = useState(null);
+  const [trabajos, setTrabajos] = useState(null);
+  const [ciudad, setCiudad] = useState('todas');
+  const [error, setError] = useState('');
 
-  const wb = XLSX.utils.book_new();
+  useEffect(() => {
+    if (sucursalActiva) setCiudad(sucursalActiva === 'Todas' ? 'todas' : sucursalActiva);
+  }, [sucursalActiva]);
 
-  const hojaClientes = clientes.map((c) => ({
-    ID: c.codigo,
-    Cliente: c.nombre,
-    Ciudad: c.ciudad || 'El Alto',
-    'Teléfono': c.telefono || '',
-    'Día de Pago': c.dia_pago ?? '',
-    Activo: c.activo ? 'Sí' : 'No',
-    Plan: c.plan || '',
-    Frecuencia: c.frecuencia || '',
-    'Precio en Bs': c.precio || 0,
-    Velocidad: c.velocidad || '',
-    'Dirección': c.direccion || '',
-    Estado: c.activo ? c.estado : 'Inactivo',
-    'Último Mensaje Enviado': c.ultimo_mensaje_enviado
-      ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO')
-      : '',
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaClientes), 'CLIENTES');
-
-  const hojaPagos = pagos.map((p) => ({
-    'ID Cliente': p.clientes?.codigo || '',
-    'Fecha de Pago': new Date(p.fecha_pago).toLocaleDateString('es-BO'),
-    Cliente: p.clientes?.nombre || '',
-    Monto: p.monto,
-    'Tipo de Pago': p.tipo_pago || 'Mensual',
-    'Mes que Corresponde': p.mes_corresponde
-      ? new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'long', year: 'numeric' })
-      : '',
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaPagos), 'PAGOS');
-
-  const hojaPlanes = (planes || []).map((p) => ({
-    Plan: p.nombre,
-    Velocidad: p.velocidad || '',
-    Frecuencia: p.frecuencia || '',
-    'Precio Bs': p.precio,
-  }));
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaPlanes), 'PLANES');
-
-  const activos = clientes.filter((c) => c.activo).length;
-  const alDia = clientes.filter((c) => c.activo && c.estado === 'Al día').length;
-  const vencidos = clientes.filter((c) => c.activo && c.estado === 'Vencido').length;
-  const hojaResumen = [
-    { Indicador: 'Total Clientes', Valor: clientes.length },
-    { Indicador: 'Clientes Activos', Valor: activos },
-    { Indicador: 'Clientes Inactivos', Valor: clientes.length - activos },
-    { Indicador: 'Clientes al Día', Valor: alDia },
-    { Indicador: 'Clientes Vencidos', Valor: vencidos },
-  ];
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumen), 'RESUMEN');
-
-  // RESUMEN MENSUAL: una fila por cliente (ordenado por código), una columna por mes
-  const clientePorId = {};
-  clientes.forEach((c) => (clientePorId[c.id] = c));
-
-  const periodos = [...new Set(registroMensual.map((r) => r.periodo))].sort();
-
-  const porCliente = {};
-  registroMensual.forEach((r) => {
-    if (!porCliente[r.cliente_id]) {
-      const c = clientePorId[r.cliente_id];
-      porCliente[r.cliente_id] = {
-        Código: c?.codigo || '',
-        Cliente: r.nombre,
-        meses: {},
-      };
+  useEffect(() => {
+    async function load() {
+      const [{ data: c, error: e1 }, { data: p, error: e2 }, { data: t, error: e3 }] = await Promise.all([
+        supabase.from('v_clientes_estado').select('*'),
+        supabase.from('pagos').select('monto, fecha_pago, tipo_pago, con_factura, clientes(ciudad)'),
+        supabase.from('trabajos_adicionales').select('monto, costo_materiales, fecha, ciudad'),
+      ]);
+      if (e1 || e2 || e3) setError((e1 || e2 || e3).message);
+      setClientes(c || []);
+      setPagos(p || []);
+      setTrabajos(t || []);
     }
-    porCliente[r.cliente_id].meses[r.periodo] = ETIQUETA_STATUS[r.status] || r.status;
-  });
+    load();
+  }, []);
 
-  const hojaResumenMensual = Object.values(porCliente)
-    .sort((a, b) => a.Código.localeCompare(b.Código))
-    .map((c) => {
-      const fila = { Código: c.Código, Cliente: c.Cliente };
-      periodos.forEach((p) => {
-        fila[nombreMesCorto(p)] = c.meses[p] || '';
-      });
-      return fila;
-    });
+  const kpi = useMemo(() => {
+    if (!clientes || !pagos || !trabajos) return null;
+    const clientesF = ciudad === 'todas' ? clientes : clientes.filter((c) => c.ciudad === ciudad);
+    const pagosF = ciudad === 'todas' ? pagos : pagos.filter((p) => p.clientes?.ciudad === ciudad);
+    const trabajosF = ciudad === 'todas' ? trabajos : trabajos.filter((t) => (t.ciudad || 'El Alto') === ciudad);
 
-  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumenMensual), 'RESUMEN MENSUAL');
+    const hoy = new Date();
+    const esMesActual = (fecha) => {
+      const f = parsearFechaLocal(fecha);
+      return f.getFullYear() === hoy.getFullYear() && f.getMonth() === hoy.getMonth();
+    };
 
-  return wb;
-}
+    const pagosMensualidad = pagosF.filter((p) => p.tipo_pago !== 'Costo de instalación');
+    const pagosInstalacion = pagosF.filter((p) => p.tipo_pago === 'Costo de instalación');
 
-// Genera y descarga 2 archivos .xlsx separados: uno para El Alto, otro para Tarija.
-export async function exportarExcel() {
-  const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }] = await Promise.all([
-    supabase.from('v_clientes_estado').select('*').order('codigo', { ascending: true }),
-    supabase
-      .from('pagos')
-      .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre, ciudad)')
-      .order('fecha_pago', { ascending: false }),
-    supabase.from('planes').select('*').order('precio', { ascending: true }),
-    supabase.from('v_registro_pagos_mensual').select('*'),
-  ]);
+    const cobradoMes = pagosMensualidad
+      .filter((p) => esMesActual(p.fecha_pago))
+      .reduce((a, p) => a + Number(p.monto), 0);
+    const ingresoHistorico = pagosMensualidad.reduce((a, p) => a + Number(p.monto), 0);
+    const ingresoInstalaciones = pagosInstalacion.reduce((a, p) => a + Number(p.monto), 0);
+    const ticketPromedio = pagosMensualidad.length ? ingresoHistorico / pagosMensualidad.length : 0;
 
-  const datos = {
-    clientesTodos: clientesTodos || [],
-    pagosTodos: pagosTodos || [],
-    planes: planes || [],
-    registroTodo: registroTodo || [],
-  };
+    const pagosMesActual = pagosMensualidad.filter((p) => esMesActual(p.fecha_pago));
+    const facturadoMes = pagosMesActual
+      .filter((p) => p.con_factura === true)
+      .reduce((a, p) => a + Number(p.monto), 0);
+    const noFacturadoMes = pagosMesActual
+      .filter((p) => p.con_factura !== true)
+      .reduce((a, p) => a + Number(p.monto), 0);
 
-  const fecha = new Date().toISOString().slice(0, 10);
+    const facturadoTotal = pagosMensualidad
+      .filter((p) => p.con_factura === true)
+      .reduce((a, p) => a + Number(p.monto), 0);
+    const noFacturadoTotal = pagosMensualidad
+      .filter((p) => p.con_factura !== true)
+      .reduce((a, p) => a + Number(p.monto), 0);
 
-  for (const ciudad of CIUDADES) {
-    const wb = construirLibro(ciudad, datos);
-    const sufijo = ciudad.replace(/\s+/g, '');
-    XLSX.writeFile(wb, `JapTom_CRM_${sufijo}_${fecha}.xlsx`);
-  }
+    // Trabajos adicionales
+    const trabajosMes = trabajosF.filter((t) => esMesActual(t.fecha));
+    const ingresoTrabajosMes = trabajosMes.reduce((a, t) => a + Number(t.monto || 0), 0);
+    const costoTrabajosMes = trabajosMes.reduce((a, t) => a + Number(t.costo_materiales || 0), 0);
+    const ingresoTrabajosTotal = trabajosF.reduce((a, t) => a + Number(t.monto || 0), 0);
+    const costoTrabajosTotal = trabajosF.reduce((a, t) => a + Number(t.costo_materiales || 0), 0);
+
+    return {
+      total_clientes: clientesF.length,
+      clientes_activos: clientesF.filter((c) => c.activo).length,
+      clientes_inactivos: clientesF.filter((c) => !c.activo).length,
+      clientes_al_dia: clientesF.filter((c) => c.activo && c.estado === 'Al día').length,
+      clientes_por_vencer: clientesF.filter((c) => c.activo && c.estado === 'Por vencer').length,
+      clientes_vencidos: clientesF.filter((c) => c.activo && c.estado === 'Vencido').length,
+      cobrado_mes_actual: cobradoMes,
+      ingreso_historico: ingresoHistorico,
+      ingreso_instalaciones: ingresoInstalaciones,
+      ticket_promedio: ticketPromedio,
+      facturado_mes: facturadoMes,
+      no_facturado_mes: noFacturadoMes,
+      facturado_total: facturadoTotal,
+      no_facturado_total: noFacturadoTotal,
+      ingreso_trabajos_mes: ingresoTrabajosMes,
+      costo_trabajos_mes: costoTrabajosMes,
+      ganancia_trabajos_mes: ingresoTrabajosMes - costoTrabajosMes,
+      ingreso_trabajos_total: ingresoTrabajosTotal,
+      costo_trabajos_total: costoTrabajosTotal,
+      ganancia_trabajos_total: ingresoTrabajosTotal - costoTrabajosTotal,
+    };
+  }, [clientes, pagos, trabajos, ciudad]);
+
+  return (
+    <AppShell>
+      <div className="flex flex-wrap items-center justify-between gap-3 mb-1">
+        <h1 className="font-display text-2xl font-bold text-brand-800">Dashboard</h1>
+        {esFija ? (
+          <span className="text-sm text-brand-500">📍 Sucursal: {ciudad}</span>
+        ) : (
+          <select className="input md:max-w-[200px]" value={ciudad} onChange={(e) => setCiudad(e.target.value)}>
+            <option value="todas">Todas las ciudades</option>
+            <option value="El Alto">El Alto</option>
+            <option value="Tarija">Tarija</option>
+          </select>
+        )}
+      </div>
+      <p className="text-brand-500 mb-6">Resumen general de JapTom Telecom</p>
+
+      {error && (
+        <div className="card p-4 mb-4 text-red-600 text-sm">
+          No se pudo cargar el dashboard: {error}
+        </div>
+      )}
+
+      {!kpi && !error && <p className="text-brand-400">Cargando indicadores…</p>}
+
+      {kpi && (
+        <>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Total clientes" value={kpi.total_clientes} />
+            <StatCard label="Clientes activos" value={kpi.clientes_activos} />
+            <StatCard label="Clientes inactivos" value={kpi.clientes_inactivos} />
+            <StatCard label="Al día" value={kpi.clientes_al_dia} />
+            <StatCard label="Por vencer (1-2 días)" value={kpi.clientes_por_vencer} />
+            <StatCard label="Vencidos" value={kpi.clientes_vencidos} />
+            <StatCard label="Cobrado este mes" value={formatBs(kpi.cobrado_mes_actual)} accent />
+            <StatCard label="Ingreso histórico (mensualidades)" value={formatBs(kpi.ingreso_historico)} />
+            <StatCard label="Ingreso por instalaciones" value={formatBs(kpi.ingreso_instalaciones)} />
+            <StatCard label="Ticket promedio" value={formatBs(kpi.ticket_promedio)} />
+          </div>
+
+          <h2 className="font-display text-lg font-bold text-brand-800 mt-8 mb-3">Facturación (internet) — este mes</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Facturado (este mes)" value={formatBs(kpi.facturado_mes)} />
+            <StatCard label="No facturado (este mes)" value={formatBs(kpi.no_facturado_mes)} />
+          </div>
+
+          <h2 className="font-display text-lg font-bold text-brand-800 mt-8 mb-3">Facturación (internet) — total histórico</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Facturado (total histórico)" value={formatBs(kpi.facturado_total)} />
+            <StatCard label="No facturado (total histórico)" value={formatBs(kpi.no_facturado_total)} />
+            <StatCard label="Ingresos totales brutos (internet)" value={formatBs(kpi.ingreso_historico)} accent />
+          </div>
+
+          <h2 className="font-display text-lg font-bold text-brand-800 mt-8 mb-3">🛠️ Trabajos adicionales — este mes</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Ingresos (este mes)" value={formatBs(kpi.ingreso_trabajos_mes)} />
+            <StatCard label="Costo materiales (este mes)" value={formatBs(kpi.costo_trabajos_mes)} />
+            <StatCard label="Ganancia neta (este mes)" value={formatBs(kpi.ganancia_trabajos_mes)} accent />
+          </div>
+
+          <h2 className="font-display text-lg font-bold text-brand-800 mt-8 mb-3">🛠️ Trabajos adicionales — total histórico</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <StatCard label="Ingresos (total histórico)" value={formatBs(kpi.ingreso_trabajos_total)} />
+            <StatCard label="Costo materiales (total histórico)" value={formatBs(kpi.costo_trabajos_total)} />
+            <StatCard label="Ganancia neta (total histórico)" value={formatBs(kpi.ganancia_trabajos_total)} accent />
+          </div>
+        </>
+      )}
+
+      {isAdmin && ciudad === 'Tarija' && (
+        <div className="mt-6">
+          <GraficoTrafico
+            titulo="📡 Tráfico en tiempo real — MikroTik Tarija"
+            endpoint="/api/mikrotik/trafico-router"
+            body={{ ciudad: 'Tarija' }}
+          />
+        </div>
+      )}
+
+      {isAdmin && ciudad === 'El Alto' && (
+        <div className="mt-6">
+          <PanelTraficoEnlaces titulo="📡 Tráfico en tiempo real — MikroTik El Alto (por proveedor)" ciudad="El Alto" />
+        </div>
+      )}
+    </AppShell>
+  );
 }
