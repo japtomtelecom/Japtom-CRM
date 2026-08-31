@@ -446,7 +446,7 @@ function EnlaceIp({ ip }) {
   if (!ip) return '—';
   return (
     <a
-      href={`https://${ip}:80/`}
+      href={`https://${ip}/`}
       target="_blank"
       rel="noreferrer"
       className="inline-flex items-center gap-1 hover:underline"
