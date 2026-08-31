@@ -438,15 +438,17 @@ const COLOR_NIVEL_OLT = {
   desconocido: '#666',
 };
 
-// Enlace para abrir la interfaz web del equipo del cliente en esa IP
-// (https://<ip>:80/). Es su propio componente porque se usa en dos lugares
-// (Configuración MikroTik y el resultado de "Estado de conexión") y así
-// queda igual de grande y clicable en los dos.
+// Enlace para abrir la interfaz web del equipo del cliente en esa IP.
+// Es su propio componente porque se usa en dos lugares (Configuración
+// MikroTik y el resultado de "Estado de conexión") y así queda igual de
+// grande y clicable en los dos. En Tarija los equipos de los clientes
+// responden en el puerto 80; en El Alto se accede directo a la IP sin
+// especificar puerto.
 function EnlaceIp({ ip, ciudad }) {
   if (!ip) return '—';
   const destino = ciudad === 'Tarija' ? `https://${ip}:80/` : `https://${ip}/`;
   return (
-    
+    <a
       href={destino}
       target="_blank"
       rel="noreferrer"
@@ -1290,7 +1292,7 @@ export default function FichaClientePage() {
                 <div>
                   <span className="text-brand-400">IP asignada</span>
                   <p className="font-mono font-medium">
-                   <EnlaceIp ip={cliente.ip_asignada} ciudad={cliente.ciudad} />
+                    <EnlaceIp ip={cliente.ip_asignada} ciudad={cliente.ciudad} />
                   </p>
                 </div>
               </div>
