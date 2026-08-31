@@ -36,7 +36,7 @@ export default function DashboardPage() {
     async function load() {
       const [{ data: c, error: e1 }, { data: p, error: e2 }] = await Promise.all([
         supabase.from('v_clientes_estado').select('*'),
-        supabase.from('pagos').select('monto, fecha_pago, tipo_pago, clientes(ciudad, factura)'),
+        supabase.from('pagos').select('monto, fecha_pago, tipo_pago, con_factura, clientes(ciudad)'),
       ]);
       if (e1 || e2) setError((e1 || e2).message);
       setClientes(c || []);
@@ -68,12 +68,16 @@ export default function DashboardPage() {
 
     // Facturado / no facturado del mes actual, solo mensualidades de internet
     // (no cuenta instalaciones ni trabajos adicionales, que son otro rubro).
+    // Usa con_factura (check por pago, en la tabla de Pagos) — NO el campo
+    // "factura" del cliente (eso es si el cliente en general requiere
+    // factura, no si este pago puntual se facturó). Mismo criterio que
+    // Estadísticas y el Excel, para que los tres coincidan siempre.
     const pagosMesActual = pagosMensualidad.filter((p) => esMesActual(p.fecha_pago));
     const facturadoMes = pagosMesActual
-      .filter((p) => p.clientes?.factura === true)
+      .filter((p) => p.con_factura === true)
       .reduce((a, p) => a + Number(p.monto), 0);
     const noFacturadoMes = pagosMesActual
-      .filter((p) => p.clientes?.factura !== true)
+      .filter((p) => p.con_factura !== true)
       .reduce((a, p) => a + Number(p.monto), 0);
 
     return {
