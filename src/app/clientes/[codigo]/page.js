@@ -442,11 +442,12 @@ const COLOR_NIVEL_OLT = {
 // (https://<ip>:80/). Es su propio componente porque se usa en dos lugares
 // (Configuración MikroTik y el resultado de "Estado de conexión") y así
 // queda igual de grande y clicable en los dos.
-function EnlaceIp({ ip }) {
+function EnlaceIp({ ip, ciudad }) {
   if (!ip) return '—';
+  const destino = ciudad === 'Tarija' ? `https://${ip}:80/` : `https://${ip}/`;
   return (
-    <a
-      href={`https://${ip}/`}
+    
+      href={destino}
       target="_blank"
       rel="noreferrer"
       className="inline-flex items-center gap-1 hover:underline"
@@ -733,7 +734,7 @@ function PanelEstadoConexion({ cliente }) {
                   <p className="text-xs text-brand-400 mt-2">
                     IP asignada:{' '}
                     <span className="block mt-1">
-                      <EnlaceIp ip={estado.pppoe.ip} />
+                      <EnlaceIp ip={estado.pppoe.ip} ciudad={cliente.ciudad} />
                     </span>
                   </p>
                 )}
@@ -1289,7 +1290,7 @@ export default function FichaClientePage() {
                 <div>
                   <span className="text-brand-400">IP asignada</span>
                   <p className="font-mono font-medium">
-                    <EnlaceIp ip={cliente.ip_asignada} />
+                   <EnlaceIp ip={cliente.ip_asignada} ciudad={cliente.ciudad} />
                   </p>
                 </div>
               </div>
