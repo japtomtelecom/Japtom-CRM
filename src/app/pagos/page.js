@@ -72,7 +72,16 @@ function PagosPageInner() {
       return;
     }
 
-    setPagos(data || []);
+    // Respaldo: el filtro de arriba (clientes.ciudad) depende del join
+    // anidado de Supabase, que en Clientes ya demostró no ser confiable del
+    // todo (ver comentario en clientes/page.js). Filtramos de nuevo acá por
+    // las dudas, para que Tarija nunca vea pagos de El Alto ni viceversa.
+    const datosFiltrados =
+      sucursalActiva && sucursalActiva !== 'Todas'
+        ? (data || []).filter((p) => p.clientes?.ciudad === sucursalActiva)
+        : data || [];
+
+    setPagos(datosFiltrados);
     setTotalPagos(count || 0);
   }
 
