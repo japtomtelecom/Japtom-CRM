@@ -18,10 +18,11 @@ function nombreMesCorto(periodo) {
 // Exportado para reutilizarlo desde el respaldo automático semanal
 // (src/app/api/cron/respaldo-semanal/route.js) — misma lógica que el botón
 // manual "⬇️ Excel" de Configuración, sin duplicar código.
-export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTodo }) {
+export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, registroTodo, trabajosTodos }) {
   const clientes = clientesTodos.filter((c) => (c.ciudad || 'El Alto') === ciudad);
   const pagos = pagosTodos.filter((p) => (p.clientes?.ciudad || 'El Alto') === ciudad);
   const registroMensual = registroTodo.filter((r) => (r.ciudad || 'El Alto') === ciudad);
+  const trabajos = (trabajosTodos || []).filter((t) => (t.ciudad || 'El Alto') === ciudad);
 
   const wb = XLSX.utils.book_new();
 
@@ -53,6 +54,7 @@ export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, regi
     'Mes que Corresponde': p.mes_corresponde
       ? new Date(p.mes_corresponde).toLocaleDateString('es-BO', { month: 'long', year: 'numeric' })
       : '',
+    Factura: p.con_factura ? 'Sí' : 'No',
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaPagos), 'PAGOS');
 
@@ -75,6 +77,19 @@ export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, regi
     { Indicador: 'Clientes Vencidos', Valor: vencidos },
   ];
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaResumen), 'RESUMEN');
+
+  const hojaTrabajos = trabajos.map((t) => ({
+    Fecha: new Date(t.fecha).toLocaleDateString('es-BO'),
+    Cliente: t.clientes?.nombre || t.nombre_cliente_externo || '',
+    'ID Cliente': t.clientes?.codigo || '',
+    Tipo: t.tipo || '',
+    'Descripción': t.descripcion || '',
+    'Monto (Bs)': t.monto,
+    'Costo Materiales (Bs)': t.costo_materiales || 0,
+    Factura: t.con_factura ? 'Sí' : 'No',
+    NIT: t.nit || '',
+  }));
+  XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaTrabajos), 'TRABAJOS ADICIONALES');
 
   // RESUMEN MENSUAL: una fila por cliente (ordenado por código), una columna por mes
   const clientePorId = {};
@@ -112,14 +127,18 @@ export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, regi
 
 // Genera y descarga 2 archivos .xlsx separados: uno para El Alto, otro para Tarija.
 export async function exportarExcel() {
-  const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }] = await Promise.all([
+  const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }, { data: trabajosTodos }] = await Promise.all([
     supabase.from('v_clientes_estado').select('*').order('codigo', { ascending: true }),
     supabase
       .from('pagos')
-      .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre, ciudad)')
+      .select('fecha_pago, monto, tipo_pago, mes_corresponde, con_factura, clientes(codigo, nombre, ciudad)')
       .order('fecha_pago', { ascending: false }),
     supabase.from('planes').select('*').order('precio', { ascending: true }),
     supabase.from('v_registro_pagos_mensual').select('*'),
+    supabase
+      .from('trabajos_adicionales')
+      .select('fecha, tipo, descripcion, monto, costo_materiales, ciudad, con_factura, nit, nombre_cliente_externo, clientes(codigo, nombre)')
+      .order('fecha', { ascending: false }),
   ]);
 
   const datos = {
@@ -127,6 +146,7 @@ export async function exportarExcel() {
     pagosTodos: pagosTodos || [],
     planes: planes || [],
     registroTodo: registroTodo || [],
+    trabajosTodos: trabajosTodos || [],
   };
 
   const fecha = new Date().toISOString().slice(0, 10);
