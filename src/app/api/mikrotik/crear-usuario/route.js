@@ -1,7 +1,6 @@
 import { RouterOSAPI } from 'node-routeros';
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
-
 // "Bloquear servicio" y otras acciones hacen varios comandos seguidos al
 // MikroTik (buscar, modificar, a veces cortar sesión activa) y a veces
 // tardaban más de los 8s que tenía el timeout de conexión, mostrando
@@ -9,33 +8,28 @@ import { configMikrotik } from '@/lib/mikrotikConfig';
 // Se sube el límite de Vercel (por defecto más corto) y el de la conexión
 // al router, dejando margen entre ambos.
 export const maxDuration = 20;
-
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
   const { clienteId } = await request.json();
   if (!clienteId) return Response.json({ error: 'Falta clienteId.' }, { status: 400 });
-
   const { data: cliente, error: errCliente } = await auth.supabaseAdmin
     .from('clientes')
     .select('codigo, pppoe_usuario, pppoe_password, plan, nombre, ciudad, activo, ip_asignada')
     .eq('id', clienteId)
     .single();
   if (errCliente || !cliente) return Response.json({ error: 'Cliente no encontrado.' }, { status: 404 });
-
   if (!cliente.pppoe_usuario || !cliente.pppoe_password) {
     return Response.json(
       { error: 'Este cliente necesita "Usuario PPPoE" y "Contraseña PPPoE" completos en su ficha antes de crearlo en el MikroTik.' },
       { status: 400 }
     );
   }
-
   const { data: planCatalogo } = await auth.supabaseAdmin
     .from('planes')
     .select('perfil_mikrotik')
     .eq('nombre', cliente.plan)
     .single();
-
   // Antes, si no había match de plan (o el plan no tenía "Perfil MikroTik"
   // cargado en Planes), este endpoint creaba igual el usuario PPPoE pero
   // SIN el parámetro =profile=, y el MikroTik lo asignaba en silencio al
@@ -55,14 +49,15 @@ export async function POST(request) {
       { status: 400 }
     );
   }
-
   let conn;
   try {
     const routerConfig = configMikrotik(cliente.ciudad);
+    console.log('[crear-usuario] Conectando a', routerConfig.host, routerConfig.port);
     conn = new RouterOSAPI({ ...routerConfig, timeout: 15 });
     await conn.connect();
-
+    console.log('[crear-usuario] Conectado y logueado OK');
     const existentes = await conn.write('/ppp/secret/print', [`?name=${cliente.pppoe_usuario}`]);
+    console.log('[crear-usuario] /ppp/secret/print terminó, encontrados:', existentes.length);
     if (existentes.length) {
       conn.close();
       return Response.json(
@@ -70,7 +65,6 @@ export async function POST(request) {
         { status: 409 }
       );
     }
-
     const params = [
       `=name=${cliente.pppoe_usuario}`,
       `=password=${cliente.pppoe_password}`,
@@ -82,10 +76,10 @@ export async function POST(request) {
     if (cliente.ip_asignada) {
       params.push(`=remote-address=${cliente.ip_asignada}`);
     }
-
+    console.log('[crear-usuario] Enviando /ppp/secret/add con params:', params);
     await conn.write('/ppp/secret/add', params);
+    console.log('[crear-usuario] /ppp/secret/add terminó OK');
     conn.close();
-
     return Response.json({
       ok: true,
       mensaje: `Usuario PPPoE "${cliente.pppoe_usuario}" creado en el MikroTik de ${cliente.ciudad}${
@@ -93,6 +87,7 @@ export async function POST(request) {
       }.`,
     });
   } catch (e) {
+    console.log('[crear-usuario] ERROR:', e.message, e.stack);
     if (conn) try { conn.close(); } catch {}
     return Response.json({ error: 'No se pudo conectar con el MikroTik: ' + e.message }, { status: 502 });
   }
