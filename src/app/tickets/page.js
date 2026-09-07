@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabaseClient';
 import { generarTicketFalla } from '@/lib/generarTicket';
 
 export default function TicketsPage() {
+  const [ciudadFiltro, setCiudadFiltro] = useState('todas');
   const [busqueda, setBusqueda] = useState('');
   const [resultados, setResultados] = useState([]);
   const [seleccionado, setSeleccionado] = useState(null);
@@ -13,26 +14,37 @@ export default function TicketsPage() {
   const [empresaNombre, setEmpresaNombre] = useState('JapTom Telecom');
   const [generando, setGenerando] = useState(false);
 
-  async function buscar(q) {
+  async function buscar(q, ciudad = ciudadFiltro) {
     setBusqueda(q);
     setSeleccionado(null);
     if (q.trim().length < 2) {
       setResultados([]);
       return;
     }
-    // Busca en AMBAS ciudades a propósito (sin filtrar por sucursal) —
-    // esta pantalla es una herramienta transversal para soporte técnico.
-    const { data } = await supabase
+    let query = supabase
       .from('clientes')
       .select('id, codigo, nombre, telefono, direccion, plan, ciudad')
       .ilike('nombre', `%${q}%`)
       .limit(10);
+    // Si hay una ciudad elegida (no "todas"), se restringe la búsqueda a esa
+    // sucursal — así no aparece por error un cliente de la otra ciudad.
+    if (ciudad !== 'todas') query = query.eq('ciudad', ciudad);
+    const { data } = await query;
     setResultados(data || []);
 
     if (!empresaNombre) {
       const { data: cfg } = await supabase.from('config').select('valor').eq('clave', 'empresa_nombre').single();
       if (cfg?.valor) setEmpresaNombre(cfg.valor);
     }
+  }
+
+  function cambiarCiudad(ciudad) {
+    setCiudadFiltro(ciudad);
+    setSeleccionado(null);
+    // Si ya había algo escrito en el buscador, se re-ejecuta la búsqueda
+    // con la nueva ciudad, para no dejar resultados de la ciudad anterior.
+    if (busqueda.trim().length >= 2) buscar(busqueda, ciudad);
+    else setResultados([]);
   }
 
   async function generar() {
@@ -55,6 +67,15 @@ export default function TicketsPage() {
       </p>
 
       <div className="card p-6 max-w-lg space-y-4">
+        <div>
+          <label className="label">Ciudad</label>
+          <select className="input" value={ciudadFiltro} onChange={(e) => cambiarCiudad(e.target.value)}>
+            <option value="todas">Todas las ciudades</option>
+            <option value="El Alto">El Alto</option>
+            <option value="Tarija">Tarija</option>
+          </select>
+        </div>
+
         <div>
           <label className="label">Buscar cliente</label>
           <input

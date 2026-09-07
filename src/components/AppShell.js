@@ -16,6 +16,7 @@ const NAV = [
   { href: '/pagos/mensual', label: 'Registro mensual', icon: '📅' },
   { href: '/trabajos-adicionales', label: 'Trabajos adicionales', icon: '🛠️' },
   { href: '/tickets', label: 'Tickets', icon: '🎫' },
+  { href: '/fallas', label: 'Fallas', icon: '🆘' },
   { href: '/estadisticas', label: 'Estadísticas', icon: '📈' },
   { href: '/planes', label: 'Planes', icon: '📶' },
   { href: '/configuracion', label: 'Configuración', icon: '⚙️' },

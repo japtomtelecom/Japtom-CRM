@@ -794,6 +794,182 @@ function PanelEstadoConexion({ cliente }) {
   );
 }
 
+function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
+  const [resolucion, setResolucion] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  async function confirmar() {
+    setGuardando(true);
+    await onConfirmar(resolucion);
+    setGuardando(false);
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={guardando ? undefined : onClose}
+    >
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 380, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>Cerrar falla</h3>
+        <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{ticket.descripcion}</p>
+
+        <label className="label" style={{ marginTop: 12 }}>Resolución (opcional)</label>
+        <textarea
+          className="input"
+          rows={3}
+          placeholder="¿Cómo se resolvió?"
+          value={resolucion}
+          onChange={(e) => setResolucion(e.target.value)}
+        />
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={confirmar} disabled={guardando} className="btn-primary">
+            {guardando ? 'Cerrando…' : 'Cerrar falla'}
+          </button>
+          <button onClick={onClose} disabled={guardando} className="btn-secondary">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PanelFallas({ clienteId, ciudad, userEmail }) {
+  const [tickets, setTickets] = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [nuevaDescripcion, setNuevaDescripcion] = useState('');
+  const [guardando, setGuardando] = useState(false);
+  const [error, setError] = useState('');
+  const [ticketACerrar, setTicketACerrar] = useState(null);
+
+  async function cargarTickets() {
+    setCargando(true);
+    const { data, error: err } = await supabase
+      .from('tickets_falla')
+      .select('*')
+      .eq('cliente_id', clienteId)
+      .order('creado_en', { ascending: false });
+    if (err) setError('No se pudo cargar el historial de fallas: ' + err.message);
+    setTickets(data || []);
+    setCargando(false);
+  }
+
+  useEffect(() => {
+    if (clienteId) cargarTickets();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [clienteId]);
+
+  async function reportar() {
+    if (!nuevaDescripcion.trim()) return;
+    setGuardando(true);
+    setError('');
+    const { error: err } = await supabase.from('tickets_falla').insert({
+      tipo: 'individual',
+      cliente_id: clienteId,
+      ciudad: ciudad || 'El Alto',
+      descripcion: nuevaDescripcion.trim(),
+      creado_por: userEmail || null,
+    });
+    setGuardando(false);
+    if (err) {
+      setError('Error al reportar la falla: ' + err.message);
+      return;
+    }
+    setNuevaDescripcion('');
+    cargarTickets();
+  }
+
+  async function cerrarTicket(resolucion) {
+    setError('');
+    const { error: err } = await supabase
+      .from('tickets_falla')
+      .update({
+        estado: 'cerrado',
+        cerrado_por: userEmail || null,
+        cerrado_en: new Date().toISOString(),
+        resolucion: resolucion?.trim() || null,
+      })
+      .eq('id', ticketACerrar.id);
+    if (err) {
+      setError('Error al cerrar la falla: ' + err.message);
+      setTicketACerrar(null);
+      return;
+    }
+    setTicketACerrar(null);
+    cargarTickets();
+  }
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-brand-700 mb-3">🛠️ Historial de fallas</h2>
+      <p className="text-xs text-brand-400 mb-3">
+        Reportes de falla de este cliente puntual (no incluye fallas masivas de zona — esas se ven en{' '}
+        <Link href="/fallas" className="hover:underline">
+          Fallas
+        </Link>
+        ).
+      </p>
+
+      <div className="flex gap-2 mb-4">
+        <textarea
+          className="input flex-1"
+          rows={2}
+          placeholder="Describir la falla reportada por el cliente…"
+          value={nuevaDescripcion}
+          onChange={(e) => setNuevaDescripcion(e.target.value)}
+        />
+        <button onClick={reportar} disabled={guardando || !nuevaDescripcion.trim()} className="btn-primary" style={{ whiteSpace: 'nowrap', height: 'fit-content' }}>
+          {guardando ? 'Guardando…' : 'Reportar'}
+        </button>
+      </div>
+
+      {error && <p className="text-sm mb-3" style={{ color: '#791F1F' }}>{error}</p>}
+
+      {cargando ? (
+        <p className="text-sm text-brand-400">Cargando historial…</p>
+      ) : tickets.length === 0 ? (
+        <p className="text-sm text-brand-400">Sin fallas registradas todavía.</p>
+      ) : (
+        <ul className="space-y-3 text-sm">
+          {tickets.map((t) => (
+            <li key={t.id} className="border-b border-brand-50 pb-3">
+              <p style={{ whiteSpace: 'pre-wrap' }}>{t.descripcion}</p>
+              <div className="flex items-center justify-between mt-1 flex-wrap gap-2">
+                <span className="text-xs text-brand-400">
+                  {new Date(t.creado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
+                  {t.creado_por ? ' · ' + t.creado_por : ''}
+                </span>
+                <span
+                  className="text-xs font-semibold"
+                  style={{ color: t.estado === 'cerrado' ? '#085041' : '#8a6d00' }}
+                >
+                  {t.estado === 'cerrado' ? '✅ Cerrado' : '🟠 Abierto'}
+                </span>
+              </div>
+              {t.estado === 'cerrado' ? (
+                <p className="text-xs text-brand-400 mt-1">
+                  Cerrado {new Date(t.cerrado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
+                  {t.cerrado_por ? ' · ' + t.cerrado_por : ''}
+                  {t.resolucion ? ' · ' + t.resolucion : ''}
+                </p>
+              ) : (
+                <button onClick={() => setTicketACerrar(t)} className="text-xs hover:underline mt-1" style={{ color: '#085041' }}>
+                  Cerrar falla
+                </button>
+              )}
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {ticketACerrar && (
+        <ModalCerrarFalla ticket={ticketACerrar} onConfirmar={cerrarTicket} onClose={() => setTicketACerrar(null)} />
+      )}
+    </div>
+  );
+}
+
 export default function FichaClientePage() {
   const params = useParams();
   const router = useRouter();
@@ -1174,6 +1350,8 @@ export default function FichaClientePage() {
         </div>
 
         <PanelApuntes clienteId={cliente.id} userEmail={user?.email} />
+
+        <PanelFallas clienteId={cliente.id} ciudad={cliente.ciudad} userEmail={user?.email} />
 
         <div className="card p-5">
           <h2 className="font-semibold text-brand-700 mb-3">Historial de pagos</h2>
