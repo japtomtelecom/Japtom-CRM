@@ -3,7 +3,7 @@ import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
 // "Bloquear servicio" y otras acciones hacen varios comandos seguidos al
 // MikroTik (buscar, modificar, a veces cortar sesión activa) y a veces
-// tardaban más de los 15s que tenía el timeout de conexión, mostrando
+// tardaban más de los 8s que tenía el timeout de conexión, mostrando
 // "Timed out after 8 seconds" y funcionando recién al 2do/3er intento.
 // Se sube el límite de Vercel (por defecto más corto) y el de la conexión
 // al router, dejando margen entre ambos.
@@ -53,7 +53,7 @@ export async function POST(request) {
   try {
     const routerConfig = configMikrotik(cliente.ciudad);
     console.log('[crear-usuario] Conectando a', routerConfig.host, routerConfig.port);
-    conn = new RouterOSAPI({ ...routerConfig, timeout: 25 });
+    conn = new RouterOSAPI({ ...routerConfig, timeout: 15 });
     await conn.connect();
     console.log('[crear-usuario] Conectado y logueado OK');
     const existentes = await conn.write('/ppp/secret/print', [`?name=${cliente.pppoe_usuario}`]);
