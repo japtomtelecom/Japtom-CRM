@@ -5,17 +5,40 @@ import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/useAuth';
+import { generarBoletaFallaMasiva } from '@/lib/generarTicket';
+
+// --- Helpers de fecha/hora ---------------------------------------------
+// Convierte un ISO (o "ahora" si no se pasa nada) al formato que necesita
+// un <input type="datetime-local"> (hora LOCAL del navegador, sin zona).
+function isoADatetimeLocal(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+// Convierte el valor de un <input type="datetime-local"> (hora local) a ISO
+// para guardar en Supabase. new Date("YYYY-MM-DDTHH:mm") ya se interpreta
+// en hora local del navegador, así que no hace falta ajustar nada más.
+function datetimeLocalAIso(valor) {
+  if (!valor) return new Date().toISOString();
+  return new Date(valor).toISOString();
+}
 
 function ModalFallaMasiva({ onConfirmar, onClose }) {
   const [ciudad, setCiudad] = useState('El Alto');
   const [sector, setSector] = useState('');
   const [descripcion, setDescripcion] = useState('');
+  const [fechaApertura, setFechaApertura] = useState(isoADatetimeLocal());
   const [guardando, setGuardando] = useState(false);
 
   async function confirmar() {
     if (!sector.trim() || !descripcion.trim()) return;
     setGuardando(true);
-    await onConfirmar({ ciudad, sector: sector.trim(), descripcion: descripcion.trim() });
+    await onConfirmar({
+      ciudad,
+      sector: sector.trim(),
+      descripcion: descripcion.trim(),
+      fechaApertura: datetimeLocalAIso(fechaApertura),
+    });
     setGuardando(false);
   }
 
@@ -44,6 +67,14 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
           onChange={(e) => setSector(e.target.value)}
         />
 
+        <label className="label" style={{ marginTop: 12 }}>Fecha y hora de apertura</label>
+        <input
+          type="datetime-local"
+          className="input"
+          value={fechaApertura}
+          onChange={(e) => setFechaApertura(e.target.value)}
+        />
+
         <label className="label" style={{ marginTop: 12 }}>Descripción</label>
         <textarea
           className="input"
@@ -68,11 +99,16 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
 
 function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
   const [resolucion, setResolucion] = useState('');
+  const [fechaCierre, setFechaCierre] = useState(isoADatetimeLocal());
   const [guardando, setGuardando] = useState(false);
+  const esMasiva = ticket.tipo === 'masiva';
 
   async function confirmar() {
     setGuardando(true);
-    await onConfirmar(resolucion);
+    await onConfirmar({
+      resolucion,
+      fechaCierre: esMasiva ? datetimeLocalAIso(fechaCierre) : new Date().toISOString(),
+    });
     setGuardando(false);
   }
 
@@ -84,6 +120,18 @@ function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
       <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 380, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0 }}>Cerrar falla</h3>
         <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{ticket.descripcion}</p>
+
+        {esMasiva && (
+          <>
+            <label className="label" style={{ marginTop: 12 }}>Fecha y hora de cierre</label>
+            <input
+              type="datetime-local"
+              className="input"
+              value={fechaCierre}
+              onChange={(e) => setFechaCierre(e.target.value)}
+            />
+          </>
+        )}
 
         <label className="label" style={{ marginTop: 12 }}>Resolución (opcional)</label>
         <textarea
@@ -107,6 +155,72 @@ function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
   );
 }
 
+// Editar las fechas de una falla masiva YA CARGADA (para corregir errores
+// de carga) — separado del flujo de "Reportar"/"Cerrar", que ya piden la
+// fecha en su momento. Solo aplica a fallas masivas.
+function ModalEditarFechasMasiva({ ticket, onGuardar, onClose }) {
+  const [fechaApertura, setFechaApertura] = useState(isoADatetimeLocal(ticket.creado_en));
+  const [fechaCierre, setFechaCierre] = useState(isoADatetimeLocal(ticket.cerrado_en));
+  const [guardando, setGuardando] = useState(false);
+  const estaCerrada = ticket.estado === 'cerrado';
+
+  async function guardar() {
+    setGuardando(true);
+    await onGuardar({
+      fechaApertura: datetimeLocalAIso(fechaApertura),
+      fechaCierre: estaCerrada ? datetimeLocalAIso(fechaCierre) : null,
+    });
+    setGuardando(false);
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={guardando ? undefined : onClose}
+    >
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 380, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>✏️ Editar fechas</h3>
+        <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>
+          {ticket.sector} ({ticket.ciudad})
+        </p>
+
+        <label className="label" style={{ marginTop: 12 }}>Fecha y hora de apertura</label>
+        <input
+          type="datetime-local"
+          className="input"
+          value={fechaApertura}
+          onChange={(e) => setFechaApertura(e.target.value)}
+        />
+
+        {estaCerrada ? (
+          <>
+            <label className="label" style={{ marginTop: 12 }}>Fecha y hora de cierre</label>
+            <input
+              type="datetime-local"
+              className="input"
+              value={fechaCierre}
+              onChange={(e) => setFechaCierre(e.target.value)}
+            />
+          </>
+        ) : (
+          <p className="text-xs text-brand-400 mt-3">
+            Esta falla sigue abierta, así que no tiene fecha de cierre todavía.
+          </p>
+        )}
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={guardar} disabled={guardando} className="btn-primary">
+            {guardando ? 'Guardando…' : 'Guardar fechas'}
+          </button>
+          <button onClick={onClose} disabled={guardando} className="btn-secondary">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FallasPage() {
   const { user } = useAuth();
   const [tickets, setTickets] = useState([]);
@@ -118,6 +232,8 @@ export default function FallasPage() {
   const [clienteFiltro, setClienteFiltro] = useState('');
   const [mostrarMasiva, setMostrarMasiva] = useState(false);
   const [ticketACerrar, setTicketACerrar] = useState(null);
+  const [ticketAEditarFechas, setTicketAEditarFechas] = useState(null);
+  const [empresaNombre, setEmpresaNombre] = useState('JapTom Telecom');
 
   async function cargar() {
     setCargando(true);
@@ -133,9 +249,17 @@ export default function FallasPage() {
 
   useEffect(() => {
     cargar();
+    supabase
+      .from('config')
+      .select('valor')
+      .eq('clave', 'empresa_nombre')
+      .single()
+      .then(({ data }) => {
+        if (data?.valor) setEmpresaNombre(data.valor);
+      });
   }, []);
 
-  async function reportarMasiva({ ciudad, sector, descripcion }) {
+  async function reportarMasiva({ ciudad, sector, descripcion, fechaApertura }) {
     setError('');
     const { error: err } = await supabase.from('tickets_falla').insert({
       tipo: 'masiva',
@@ -143,6 +267,7 @@ export default function FallasPage() {
       sector,
       descripcion,
       creado_por: user?.email || null,
+      creado_en: fechaApertura,
     });
     if (err) {
       setError('Error al reportar la falla masiva: ' + err.message);
@@ -153,14 +278,14 @@ export default function FallasPage() {
     cargar();
   }
 
-  async function cerrarTicket(resolucion) {
+  async function cerrarTicket({ resolucion, fechaCierre }) {
     setError('');
     const { error: err } = await supabase
       .from('tickets_falla')
       .update({
         estado: 'cerrado',
         cerrado_por: user?.email || null,
-        cerrado_en: new Date().toISOString(),
+        cerrado_en: fechaCierre || new Date().toISOString(),
         resolucion: resolucion?.trim() || null,
       })
       .eq('id', ticketACerrar.id);
@@ -171,6 +296,24 @@ export default function FallasPage() {
     }
     setTicketACerrar(null);
     cargar();
+  }
+
+  async function guardarFechasMasiva({ fechaApertura, fechaCierre }) {
+    setError('');
+    const cambios = { creado_en: fechaApertura };
+    if (fechaCierre) cambios.cerrado_en = fechaCierre;
+    const { error: err } = await supabase.from('tickets_falla').update(cambios).eq('id', ticketAEditarFechas.id);
+    if (err) {
+      setError('Error al editar las fechas: ' + err.message);
+      setTicketAEditarFechas(null);
+      return;
+    }
+    setTicketAEditarFechas(null);
+    cargar();
+  }
+
+  function descargarBoleta(ticket) {
+    generarBoletaFallaMasiva(ticket, empresaNombre);
   }
 
   const filtrados = useMemo(() => {
@@ -268,7 +411,7 @@ export default function FallasPage() {
                     <p className="font-semibold text-brand-700">Cliente eliminado · {t.ciudad}</p>
                   )}
                   <p className="text-xs text-brand-400 mt-1">
-                    {new Date(t.creado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
+                    Apertura: {new Date(t.creado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
                     {t.creado_por ? ' · ' + t.creado_por : ''}
                   </p>
                 </div>
@@ -285,17 +428,31 @@ export default function FallasPage() {
 
               <p className="text-sm mt-2" style={{ whiteSpace: 'pre-wrap' }}>{t.descripcion}</p>
 
-              {t.estado === 'cerrado' ? (
+              {t.estado === 'cerrado' && (
                 <p className="text-xs text-brand-400 mt-2">
-                  Cerrado {new Date(t.cerrado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
+                  Cierre: {new Date(t.cerrado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
                   {t.cerrado_por ? ' · ' + t.cerrado_por : ''}
                   {t.resolucion ? ' · ' + t.resolucion : ''}
                 </p>
-              ) : (
-                <button onClick={() => setTicketACerrar(t)} className="btn-secondary text-xs mt-3">
-                  Cerrar falla
-                </button>
               )}
+
+              <div className="flex gap-2 flex-wrap mt-3">
+                {t.estado === 'abierto' && (
+                  <button onClick={() => setTicketACerrar(t)} className="btn-secondary text-xs">
+                    Cerrar falla
+                  </button>
+                )}
+                {t.tipo === 'masiva' && (
+                  <>
+                    <button onClick={() => setTicketAEditarFechas(t)} className="btn-secondary text-xs">
+                      ✏️ Editar fechas
+                    </button>
+                    <button onClick={() => descargarBoleta(t)} className="btn-secondary text-xs">
+                      📄 Boleta PDF
+                    </button>
+                  </>
+                )}
+              </div>
             </div>
           ))}
         </div>
@@ -306,6 +463,13 @@ export default function FallasPage() {
       )}
       {ticketACerrar && (
         <ModalCerrarFalla ticket={ticketACerrar} onConfirmar={cerrarTicket} onClose={() => setTicketACerrar(null)} />
+      )}
+      {ticketAEditarFechas && (
+        <ModalEditarFechasMasiva
+          ticket={ticketAEditarFechas}
+          onGuardar={guardarFechasMasiva}
+          onClose={() => setTicketAEditarFechas(null)}
+        />
       )}
     </AppShell>
   );
