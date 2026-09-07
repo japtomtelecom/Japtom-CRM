@@ -7,27 +7,103 @@ import { supabase } from '@/lib/supabaseClient';
 import { useAuth } from '@/lib/useAuth';
 import { generarBoletaFallaMasiva } from '@/lib/generarTicket';
 
-// --- Helpers de fecha/hora ---------------------------------------------
-// Convierte un ISO (o "ahora" si no se pasa nada) al formato que necesita
-// un <input type="datetime-local"> (hora LOCAL del navegador, sin zona).
-function isoADatetimeLocal(iso) {
+// --- Helpers de fecha/hora (siempre en hora de Bolivia, UTC-4 fijo) ----
+// Bolivia no tiene horario de verano, así que el offset respecto a UTC es
+// siempre -04:00 — no depende del reloj ni la zona horaria del dispositivo
+// que esté usando cada persona. Por eso se escribe el offset directo en el
+// ISO en vez de confiar en new Date() "local" del navegador.
+const HORAS = Array.from({ length: 24 }, (_, i) => String(i).padStart(2, '0'));
+const MINUTOS = ['00', '05', '10', '15', '20', '25', '30', '35', '40', '45', '50', '55'];
+
+// A partir de un ISO (o "ahora" si no se pasa nada), devuelve
+// { fecha, hora, minuto } ya en hora de Bolivia, listos para los
+// desplegables. Redondea los minutos al múltiplo de 5 más cercano.
+function partesDesdeIso(iso) {
   const d = iso ? new Date(iso) : new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  const fmt = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'America/La_Paz',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  });
+  const partes = {};
+  fmt.formatToParts(d).forEach((p) => {
+    partes[p.type] = p.value;
+  });
+  let minuto = Math.round(Number(partes.minute) / 5) * 5;
+  let hora = Number(partes.hour);
+  if (minuto === 60) {
+    minuto = 0;
+    hora = (hora + 1) % 24;
+  }
+  return {
+    fecha: `${partes.year}-${partes.month}-${partes.day}`,
+    hora: String(hora).padStart(2, '0'),
+    minuto: String(minuto).padStart(2, '0'),
+  };
 }
-// Convierte el valor de un <input type="datetime-local"> (hora local) a ISO
-// para guardar en Supabase. new Date("YYYY-MM-DDTHH:mm") ya se interpreta
-// en hora local del navegador, así que no hace falta ajustar nada más.
-function datetimeLocalAIso(valor) {
-  if (!valor) return new Date().toISOString();
-  return new Date(valor).toISOString();
+
+// Arma un ISO (para guardar en Supabase) a partir de fecha/hora/minuto
+// elegidos, interpretándolos siempre como hora de Bolivia.
+function partesAIso(fecha, hora, minuto) {
+  return new Date(`${fecha}T${hora}:${minuto}:00-04:00`).toISOString();
+}
+
+// Muestra una fecha guardada siempre en hora de Bolivia, sin importar el
+// dispositivo desde el que se esté mirando.
+function formatearFechaHora(iso) {
+  return new Date(iso).toLocaleString('es-BO', {
+    dateStyle: 'short',
+    timeStyle: 'short',
+    timeZone: 'America/La_Paz',
+  });
+}
+
+// Selector de fecha y hora "amigable": un input de fecha normal + dos
+// desplegables (hora, minuto) en vez del widget nativo datetime-local del
+// navegador, que resulta confuso en varios celulares/navegadores.
+function SelectorFechaHora({ label, fecha, hora, minuto, onCambiarFecha, onCambiarHora, onCambiarMinuto }) {
+  return (
+    <div style={{ marginTop: 12 }}>
+      <label className="label">{label}</label>
+      <div className="flex gap-2">
+        <input
+          type="date"
+          className="input"
+          value={fecha}
+          onChange={(e) => onCambiarFecha(e.target.value)}
+          style={{ flex: 2 }}
+        />
+        <select className="input" value={hora} onChange={(e) => onCambiarHora(e.target.value)} style={{ flex: 1 }}>
+          {HORAS.map((h) => (
+            <option key={h} value={h}>
+              {h} h
+            </option>
+          ))}
+        </select>
+        <select className="input" value={minuto} onChange={(e) => onCambiarMinuto(e.target.value)} style={{ flex: 1 }}>
+          {MINUTOS.map((m) => (
+            <option key={m} value={m}>
+              {m} min
+            </option>
+          ))}
+        </select>
+      </div>
+    </div>
+  );
 }
 
 function ModalFallaMasiva({ onConfirmar, onClose }) {
   const [ciudad, setCiudad] = useState('El Alto');
   const [sector, setSector] = useState('');
   const [descripcion, setDescripcion] = useState('');
-  const [fechaApertura, setFechaApertura] = useState(isoADatetimeLocal());
+  const inicial = partesDesdeIso();
+  const [fecha, setFecha] = useState(inicial.fecha);
+  const [hora, setHora] = useState(inicial.hora);
+  const [minuto, setMinuto] = useState(inicial.minuto);
   const [guardando, setGuardando] = useState(false);
 
   async function confirmar() {
@@ -37,7 +113,7 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
       ciudad,
       sector: sector.trim(),
       descripcion: descripcion.trim(),
-      fechaApertura: datetimeLocalAIso(fechaApertura),
+      fechaApertura: partesAIso(fecha, hora, minuto),
     });
     setGuardando(false);
   }
@@ -47,7 +123,7 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
       onClick={guardando ? undefined : onClose}
     >
-      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 400, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 420, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0 }}>🆘 Reportar falla masiva</h3>
         <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>
           Para un corte o problema que afecta a una zona entera (no a un cliente puntual).
@@ -67,12 +143,14 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
           onChange={(e) => setSector(e.target.value)}
         />
 
-        <label className="label" style={{ marginTop: 12 }}>Fecha y hora de apertura</label>
-        <input
-          type="datetime-local"
-          className="input"
-          value={fechaApertura}
-          onChange={(e) => setFechaApertura(e.target.value)}
+        <SelectorFechaHora
+          label="Fecha y hora de apertura"
+          fecha={fecha}
+          hora={hora}
+          minuto={minuto}
+          onCambiarFecha={setFecha}
+          onCambiarHora={setHora}
+          onCambiarMinuto={setMinuto}
         />
 
         <label className="label" style={{ marginTop: 12 }}>Descripción</label>
@@ -99,7 +177,10 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
 
 function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
   const [resolucion, setResolucion] = useState('');
-  const [fechaCierre, setFechaCierre] = useState(isoADatetimeLocal());
+  const inicial = partesDesdeIso();
+  const [fecha, setFecha] = useState(inicial.fecha);
+  const [hora, setHora] = useState(inicial.hora);
+  const [minuto, setMinuto] = useState(inicial.minuto);
   const [guardando, setGuardando] = useState(false);
   const esMasiva = ticket.tipo === 'masiva';
 
@@ -107,7 +188,7 @@ function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
     setGuardando(true);
     await onConfirmar({
       resolucion,
-      fechaCierre: esMasiva ? datetimeLocalAIso(fechaCierre) : new Date().toISOString(),
+      fechaCierre: esMasiva ? partesAIso(fecha, hora, minuto) : new Date().toISOString(),
     });
     setGuardando(false);
   }
@@ -117,20 +198,20 @@ function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
       onClick={guardando ? undefined : onClose}
     >
-      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 380, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 420, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0 }}>Cerrar falla</h3>
         <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{ticket.descripcion}</p>
 
         {esMasiva && (
-          <>
-            <label className="label" style={{ marginTop: 12 }}>Fecha y hora de cierre</label>
-            <input
-              type="datetime-local"
-              className="input"
-              value={fechaCierre}
-              onChange={(e) => setFechaCierre(e.target.value)}
-            />
-          </>
+          <SelectorFechaHora
+            label="Fecha y hora de cierre"
+            fecha={fecha}
+            hora={hora}
+            minuto={minuto}
+            onCambiarFecha={setFecha}
+            onCambiarHora={setHora}
+            onCambiarMinuto={setMinuto}
+          />
         )}
 
         <label className="label" style={{ marginTop: 12 }}>Resolución (opcional)</label>
@@ -159,16 +240,22 @@ function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
 // de carga) — separado del flujo de "Reportar"/"Cerrar", que ya piden la
 // fecha en su momento. Solo aplica a fallas masivas.
 function ModalEditarFechasMasiva({ ticket, onGuardar, onClose }) {
-  const [fechaApertura, setFechaApertura] = useState(isoADatetimeLocal(ticket.creado_en));
-  const [fechaCierre, setFechaCierre] = useState(isoADatetimeLocal(ticket.cerrado_en));
+  const iniApertura = partesDesdeIso(ticket.creado_en);
+  const iniCierre = partesDesdeIso(ticket.cerrado_en);
+  const [fechaApertura, setFechaApertura] = useState(iniApertura.fecha);
+  const [horaApertura, setHoraApertura] = useState(iniApertura.hora);
+  const [minutoApertura, setMinutoApertura] = useState(iniApertura.minuto);
+  const [fechaCierre, setFechaCierre] = useState(iniCierre.fecha);
+  const [horaCierre, setHoraCierre] = useState(iniCierre.hora);
+  const [minutoCierre, setMinutoCierre] = useState(iniCierre.minuto);
   const [guardando, setGuardando] = useState(false);
   const estaCerrada = ticket.estado === 'cerrado';
 
   async function guardar() {
     setGuardando(true);
     await onGuardar({
-      fechaApertura: datetimeLocalAIso(fechaApertura),
-      fechaCierre: estaCerrada ? datetimeLocalAIso(fechaCierre) : null,
+      fechaApertura: partesAIso(fechaApertura, horaApertura, minutoApertura),
+      fechaCierre: estaCerrada ? partesAIso(fechaCierre, horaCierre, minutoCierre) : null,
     });
     setGuardando(false);
   }
@@ -178,30 +265,32 @@ function ModalEditarFechasMasiva({ ticket, onGuardar, onClose }) {
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
       onClick={guardando ? undefined : onClose}
     >
-      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 380, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 420, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h3 style={{ marginTop: 0 }}>✏️ Editar fechas</h3>
         <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>
           {ticket.sector} ({ticket.ciudad})
         </p>
 
-        <label className="label" style={{ marginTop: 12 }}>Fecha y hora de apertura</label>
-        <input
-          type="datetime-local"
-          className="input"
-          value={fechaApertura}
-          onChange={(e) => setFechaApertura(e.target.value)}
+        <SelectorFechaHora
+          label="Fecha y hora de apertura"
+          fecha={fechaApertura}
+          hora={horaApertura}
+          minuto={minutoApertura}
+          onCambiarFecha={setFechaApertura}
+          onCambiarHora={setHoraApertura}
+          onCambiarMinuto={setMinutoApertura}
         />
 
         {estaCerrada ? (
-          <>
-            <label className="label" style={{ marginTop: 12 }}>Fecha y hora de cierre</label>
-            <input
-              type="datetime-local"
-              className="input"
-              value={fechaCierre}
-              onChange={(e) => setFechaCierre(e.target.value)}
-            />
-          </>
+          <SelectorFechaHora
+            label="Fecha y hora de cierre"
+            fecha={fechaCierre}
+            hora={horaCierre}
+            minuto={minutoCierre}
+            onCambiarFecha={setFechaCierre}
+            onCambiarHora={setHoraCierre}
+            onCambiarMinuto={setMinutoCierre}
+          />
         ) : (
           <p className="text-xs text-brand-400 mt-3">
             Esta falla sigue abierta, así que no tiene fecha de cierre todavía.
@@ -411,7 +500,7 @@ export default function FallasPage() {
                     <p className="font-semibold text-brand-700">Cliente eliminado · {t.ciudad}</p>
                   )}
                   <p className="text-xs text-brand-400 mt-1">
-                    Apertura: {new Date(t.creado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
+                    Apertura: {formatearFechaHora(t.creado_en)}
                     {t.creado_por ? ' · ' + t.creado_por : ''}
                   </p>
                 </div>
@@ -430,7 +519,7 @@ export default function FallasPage() {
 
               {t.estado === 'cerrado' && (
                 <p className="text-xs text-brand-400 mt-2">
-                  Cierre: {new Date(t.cerrado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })}
+                  Cierre: {formatearFechaHora(t.cerrado_en)}
                   {t.cerrado_por ? ' · ' + t.cerrado_por : ''}
                   {t.resolucion ? ' · ' + t.resolucion : ''}
                 </p>

@@ -161,12 +161,20 @@ export async function generarBoletaFallaMasiva(ticket, empresaNombre = 'JapTom T
     ['Estado', ticket.estado === 'cerrado' ? 'Cerrado' : 'Abierto'],
     [
       'Apertura',
-      new Date(ticket.creado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' }),
+      new Date(ticket.creado_en).toLocaleString('es-BO', {
+        dateStyle: 'short',
+        timeStyle: 'short',
+        timeZone: 'America/La_Paz',
+      }),
     ],
     [
       'Cierre',
       ticket.cerrado_en
-        ? new Date(ticket.cerrado_en).toLocaleString('es-BO', { dateStyle: 'short', timeStyle: 'short' })
+        ? new Date(ticket.cerrado_en).toLocaleString('es-BO', {
+            dateStyle: 'short',
+            timeStyle: 'short',
+            timeZone: 'America/La_Paz',
+          })
         : '—',
     ],
   ];
