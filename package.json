@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.4",
@@ -15,6 +16,7 @@
     "next": "14.2.5",
     "node-routeros": "^1.6.7",
     "nodemailer": "^6.9.14",
+    "patch-package": "^8.0.1",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "source-map-support": "^0.5.21",
