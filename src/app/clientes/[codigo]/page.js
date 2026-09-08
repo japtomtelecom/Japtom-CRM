@@ -970,6 +970,143 @@ function PanelFallas({ clienteId, ciudad, userEmail }) {
   );
 }
 
+// Control de OLT para clientes de El Alto — distinto al panel de Tarija
+// (que es V-Sol, por SSH). Acá se consulta la OLT Ubiquiti por su API HTTPS
+// (ver src/lib/oltUbiquiti.js). Si el cliente está marcado como "BT-PON" (la
+// otra OLT de El Alto), o no tiene marca cargada, se avisa que todavía no
+// está integrada — no se intenta conectar a nada.
+function PanelOltElAlto({ cliente }) {
+  const [consultando, setConsultando] = useState(false);
+  const [resultado, setResultado] = useState(null);
+  const [error, setError] = useState(null);
+
+  async function verPotencia() {
+    if (!confirm(`¿Confirmas consultar la potencia óptica de ${cliente.nombre} en la OLT Ubiquiti?`)) return;
+    setConsultando(true);
+    setError(null);
+    setResultado(null);
+    try {
+      const json = await llamarApiAdmin('/api/olt-elalto/optical', { clienteId: cliente.id });
+      setResultado(json);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setConsultando(false);
+    }
+  }
+
+  function aceptar() {
+    setResultado(null);
+    setError(null);
+  }
+
+  if (cliente.olt_marca === 'BT-PON') {
+    return (
+      <div className="card p-5">
+        <h2 className="font-semibold text-brand-700 mb-3">Control OLT</h2>
+        <p className="text-xs text-brand-400">
+          Este cliente está en la OLT BT-PON — todavía no está integrada al CRM.
+        </p>
+      </div>
+    );
+  }
+
+  if (cliente.olt_marca !== 'Ubiquiti') {
+    return (
+      <div className="card p-5">
+        <h2 className="font-semibold text-brand-700 mb-3">Control OLT</h2>
+        <p className="text-xs text-amber-600">
+          Este cliente no tiene "OLT" seleccionada (Ubiquiti / BT-PON). Completalo en "Editar" para poder consultar su potencia óptica.
+        </p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-brand-700 mb-3">Control OLT (Ubiquiti)</h2>
+
+      {!cliente.ip_asignada && (
+        <p className="text-xs text-amber-600 mb-3">
+          Este cliente no tiene "IP asignada" configurada — es el dato que se usa para encontrar su ONU en esta OLT.
+        </p>
+      )}
+
+      <button
+        onClick={verPotencia}
+        disabled={consultando || !cliente.ip_asignada}
+        className="btn-secondary text-sm"
+        style={{ width: '100%' }}
+      >
+        {consultando ? 'Consultando…' : '📶 Ver potencia óptica'}
+      </button>
+
+      {error && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 12px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            background: '#FCEBEB',
+            color: '#791F1F',
+          }}
+        >
+          <p style={{ margin: 0 }}>⚠️ {error}</p>
+          <button onClick={aceptar} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+            Aceptar
+          </button>
+        </div>
+      )}
+
+      {resultado && (
+        <div className="mt-3">
+          {resultado.encontrado === false ? (
+            <p className="text-sm text-brand-400">{resultado.mensaje}</p>
+          ) : (
+            <div className="rounded-lg p-3" style={{ background: '#F5F7F6' }}>
+              <p className="text-sm font-semibold mb-2">
+                {resultado.online ? '🟢 En línea' : '🔴 Desconectada'}
+                {!resultado.autorizada && ' · sin autorizar'}
+              </p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                  <p className="text-xs text-brand-400">Rx</p>
+                  <p className="text-sm font-semibold">
+                    {resultado.rxDbm != null ? resultado.rxDbm.toFixed(2) : '—'}
+                  </p>
+                  <p className="text-xs text-brand-400">dBm</p>
+                </div>
+                <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                  <p className="text-xs text-brand-400">Tx</p>
+                  <p className="text-sm font-semibold">
+                    {resultado.txDbm != null ? resultado.txDbm.toFixed(2) : '—'}
+                  </p>
+                  <p className="text-xs text-brand-400">dBm</p>
+                </div>
+                <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                  <p className="text-xs text-brand-400">Temp.</p>
+                  <p className="text-sm font-semibold">
+                    {resultado.temperaturaC != null ? resultado.temperaturaC.toFixed(0) : '—'}
+                  </p>
+                  <p className="text-xs text-brand-400">°C</p>
+                </div>
+              </div>
+              <p className="text-xs text-brand-400 mt-2">
+                Puerto PON {resultado.puertoPon ?? '—'} · Serie {resultado.serial ?? '—'}
+              </p>
+            </div>
+          )}
+          <button onClick={aceptar} className="btn-primary text-xs mt-2">
+            Aceptar
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FichaClientePage() {
   const params = useParams();
   const router = useRouter();
@@ -1074,6 +1211,7 @@ export default function FichaClientePage() {
         olt_puerto_pon: form.olt_puerto_pon ? Number(form.olt_puerto_pon) : null,
         olt_onu_id: form.olt_onu_id ? Number(form.olt_onu_id) : null,
         olt_sn: form.olt_sn,
+        olt_marca: form.olt_marca || null,
       })
       .eq('id', cliente.id);
     setGuardando(false);
@@ -1228,6 +1366,12 @@ export default function FichaClientePage() {
                 <span className="text-brand-400">Activo</span>
                 <p className="font-medium">{cliente.activo ? 'Sí' : 'No'}</p>
               </div>
+              {(cliente.ciudad || 'El Alto') === 'El Alto' && (
+                <div>
+                  <span className="text-brand-400">OLT</span>
+                  <p className="font-medium">{cliente.olt_marca || '—'}</p>
+                </div>
+              )}
             </div>
           ) : (
             <div className="grid grid-cols-2 gap-3">
@@ -1318,6 +1462,20 @@ export default function FichaClientePage() {
                 />
                 <label htmlFor="activo" className="text-sm">Cliente activo</label>
               </div>
+              {(form.ciudad || 'El Alto') === 'El Alto' && (
+                <div>
+                  <label className="label">OLT</label>
+                  <select
+                    className="input"
+                    value={form.olt_marca || ''}
+                    onChange={(e) => setForm({ ...form, olt_marca: e.target.value || null })}
+                  >
+                    <option value="">— No especificado —</option>
+                    <option value="Ubiquiti">Ubiquiti</option>
+                    <option value="BT-PON">BT-PON</option>
+                  </select>
+                </div>
+              )}
 
               {msg && <p className="col-span-2 text-sm text-brand-600">{msg}</p>}
 
@@ -1494,8 +1652,12 @@ export default function FichaClientePage() {
 
           {isAdmin && !editando && <PanelMikrotik cliente={cliente} onRecargar={cargar} />}
 
-          {isAdmin && !editando && (
+          {isAdmin && !editando && cliente.ciudad === 'Tarija' && (
             <PanelOlt cliente={cliente} onRecargar={cargar} optico={opticoOlt} setOptico={setOpticoOlt} />
+          )}
+
+          {isAdmin && !editando && (cliente.ciudad || 'El Alto') === 'El Alto' && (
+            <PanelOltElAlto cliente={cliente} />
           )}
 
           <div className="card p-5">
