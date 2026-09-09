@@ -4,7 +4,7 @@ import https from 'https';
 // rejectUnauthorized:false porque la OLT usa un certificado autofirmado (normal en
 // equipos de red sin dominio público) — confiamos en él porque accedemos por su
 // IP directa, no a través de un dominio de terceros.
-function peticionOlt(metodo, ruta, { token, body, timeoutMs = 8000 } = {}) {
+function peticionOlt(metodo, ruta, { token, body, timeoutMs = 18000 } = {}) {
   return new Promise((resolve, reject) => {
     const datos = body ? JSON.stringify(body) : null;
     const opciones = {
@@ -49,9 +49,12 @@ async function loginOltUbiquiti() {
   if (!usuario || !password) {
     throw new Error('Faltan las variables de entorno OLT_ELALTO_USER / OLT_ELALTO_PASSWORD.');
   }
+  const t0 = Date.now();
+  console.log('[oltUbiquiti] Iniciando login a', process.env.OLT_ELALTO_HOST);
   const res = await peticionOlt('POST', '/api/v1.0/user/login', {
     body: { username: usuario, password },
   });
+  console.log('[oltUbiquiti] Login respondió en', Date.now() - t0, 'ms, status', res.status);
   const token = res.headers['x-auth-token'];
   if (res.status !== 200 || !token) {
     throw new Error(`La OLT no devolvió sesión válida al iniciar sesión (status ${res.status}).`);
@@ -61,22 +64,26 @@ async function loginOltUbiquiti() {
 
 async function obtenerOnusUnaVez() {
   const token = await loginOltUbiquiti();
+  const t0 = Date.now();
+  console.log('[oltUbiquiti] Pidiendo lista de ONUs…');
   const res = await peticionOlt('GET', '/api/v1.0/gpon/onus', { token });
+  console.log(
+    '[oltUbiquiti] Lista de ONUs respondió en',
+    Date.now() - t0,
+    'ms, status',
+    res.status,
+    ', registros:',
+    Array.isArray(res.json) ? res.json.length : 'n/a'
+  );
   if (res.status !== 200 || !Array.isArray(res.json)) {
     throw new Error(`No se pudo obtener la lista de ONUs de la OLT (status ${res.status}).`);
   }
   return res.json;
 }
 
-// Trae la lista completa de ONUs de la OLT (todas, de todos los puertos
-// PON). La conexión a esta OLT es intermitente en algunos momentos, así
-// que se reintenta una vez automáticamente antes de darse por vencido.
+// Trae la lista completa de ONUs de la OLT (todas, de todos los puertos PON).
 export async function obtenerOnusUbiquiti() {
-  try {
-    return await obtenerOnusUnaVez();
-  } catch (e) {
-    return await obtenerOnusUnaVez();
-  }
+  return obtenerOnusUnaVez();
 }
 
 // Busca, dentro de la lista de ONUs, la que corresponde a un cliente.

@@ -1,7 +1,7 @@
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { obtenerOnusUbiquiti, buscarOnu } from '@/lib/oltUbiquiti';
 
-export const maxDuration = 25;
+export const maxDuration = 45;
 
 export async function POST(request) {
   const auth = await verificarAdmin(request);

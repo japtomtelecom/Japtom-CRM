@@ -26,7 +26,7 @@ import { obtenerOnusUbiquiti, buscarOnu } from '@/lib/oltUbiquiti';
 // cuánto" está desconectado, incluso si nadie miró la ficha justo cuando se
 // desconectó — entre esto y el cron de src/app/api/cron/estado-pppoe/, el
 // historial se mantiene razonablemente al día.
-export const maxDuration = 25;
+export const maxDuration = 45;
 
 async function actualizarHistorialPppoe(supabaseAdmin, clienteId, conectado) {
   const ahora = new Date().toISOString();
