@@ -11,12 +11,15 @@ import {
   evaluarRx,
   detectarErrorCli,
 } from '@/lib/oltSsh';
+import { obtenerOnusUbiquiti, buscarOnuPorIp } from '@/lib/oltUbiquiti';
 
 // Estado de conexión "en vivo" de un cliente puntual, para el botón
 // "Ver estado de conexión" de la ficha:
 //   - PPPoE (MikroTik): en las dos sedes (Tarija y El Alto).
-//   - OLT (V-Sol): solo Tarija por ahora — la OLT de El Alto (BT-PON) todavía
-//     no está integrada al CRM (ver claude/estado-integracion-olt.md).
+//   - OLT: en Tarija siempre es V-Sol (por SSH). En El Alto, solo si el
+//     cliente tiene "OLT" = "Ubiquiti" en su ficha (se consulta por su API
+//     HTTPS) — si es "BT-PON" o no tiene marca cargada, esa OLT todavía no
+//     está integrada al CRM y no se intenta consultar nada.
 //
 // Cada consulta también actualiza `estado_pppoe` (ver
 // supabase/estado_pppoe_migracion.sql) para poder mostrar "desde hace
@@ -114,6 +117,36 @@ async function consultarOlt(cliente) {
   }
 }
 
+// Misma idea que consultarOlt(), pero para la OLT Ubiquiti de El Alto
+// (API HTTPS en vez de SSH). Se busca la ONU por la "IP asignada" del
+// cliente — ver src/lib/oltUbiquiti.js.
+async function consultarOltUbiquiti(cliente) {
+  if (!cliente.ip_asignada) {
+    return {
+      error: 'Este cliente no tiene "IP asignada" configurada en su ficha — es el dato que se usa para encontrar su ONU en esta OLT.',
+    };
+  }
+  try {
+    const onus = await obtenerOnusUbiquiti();
+    const onu = buscarOnuPorIp(onus, cliente.ip_asignada);
+    if (!onu) {
+      return { encontrado: false };
+    }
+    return {
+      encontrado: true,
+      online: !!onu.connected,
+      autorizada: !!onu.authorized,
+      rxDbm: onu.rxPower != null ? Number(onu.rxPower.toFixed(2)) : null,
+      txDbm: onu.txPower != null ? Number(onu.txPower.toFixed(2)) : null,
+      temperaturaC: onu.system?.temperature?.cpu != null ? Math.round(onu.system.temperature.cpu) : null,
+      puertoPon: onu.oltPort ?? null,
+      serial: onu.serial ?? null,
+    };
+  } catch (e) {
+    return { error: 'No se pudo conectar con la OLT: ' + e.message };
+  }
+}
+
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
@@ -123,7 +156,7 @@ export async function POST(request) {
 
   const { data: cliente, error: errCliente } = await auth.supabaseAdmin
     .from('clientes')
-    .select('nombre, pppoe_usuario, ciudad, olt_puerto_pon, olt_onu_id')
+    .select('nombre, pppoe_usuario, ciudad, olt_puerto_pon, olt_onu_id, olt_marca, ip_asignada')
     .eq('id', clienteId)
     .single();
 
@@ -136,13 +169,16 @@ export async function POST(request) {
   }
 
   const esTarija = cliente.ciudad === 'Tarija';
+  const esUbiquitiElAlto = cliente.ciudad === 'El Alto' && cliente.olt_marca === 'Ubiquiti';
 
   const [pppoe, olt] = await Promise.all([
     consultarPppoe(auth.supabaseAdmin, cliente, clienteId),
-    // En El Alto la OLT todavía no está integrada — no tiene sentido
-    // intentar conectarse, así que ni se consulta.
-    esTarija ? consultarOlt(cliente) : Promise.resolve(null),
+    esTarija
+      ? consultarOlt(cliente)
+      : esUbiquitiElAlto
+        ? consultarOltUbiquiti(cliente)
+        : Promise.resolve(null),
   ]);
 
-  return Response.json({ ok: true, ciudad: cliente.ciudad, pppoe, olt });
+  return Response.json({ ok: true, ciudad: cliente.ciudad, oltMarca: cliente.olt_marca || null, pppoe, olt });
 }
