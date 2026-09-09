@@ -4,7 +4,7 @@ import https from 'https';
 // rejectUnauthorized:false porque la OLT usa un certificado autofirmado (normal en
 // equipos de red sin dominio público) — confiamos en él porque accedemos por su
 // IP directa, no a través de un dominio de terceros.
-function peticionOlt(metodo, ruta, { token, body } = {}) {
+function peticionOlt(metodo, ruta, { token, body, timeoutMs = 8000 } = {}) {
   return new Promise((resolve, reject) => {
     const datos = body ? JSON.stringify(body) : null;
     const opciones = {
@@ -35,7 +35,7 @@ function peticionOlt(metodo, ruta, { token, body } = {}) {
     });
 
     req.on('error', reject);
-    req.setTimeout(10000, () => req.destroy(new Error('Tiempo de espera agotado al conectar con la OLT.')));
+    req.setTimeout(timeoutMs, () => req.destroy(new Error('Tiempo de espera agotado al conectar con la OLT.')));
     if (datos) req.write(datos);
     req.end();
   });
@@ -43,7 +43,7 @@ function peticionOlt(metodo, ruta, { token, body } = {}) {
 
 // Inicia sesión con OLT_ELALTO_USER / OLT_ELALTO_PASSWORD y devuelve el token
 // (viene en el header "x-auth-token" de la respuesta del login, no en el cuerpo).
-export async function loginOltUbiquiti() {
+async function loginOltUbiquiti() {
   const usuario = process.env.OLT_ELALTO_USER;
   const password = process.env.OLT_ELALTO_PASSWORD;
   if (!usuario || !password) {
@@ -59,8 +59,7 @@ export async function loginOltUbiquiti() {
   return token;
 }
 
-// Trae la lista completa de ONUs de la OLT (todas, de todos los puertos PON).
-export async function obtenerOnusUbiquiti() {
+async function obtenerOnusUnaVez() {
   const token = await loginOltUbiquiti();
   const res = await peticionOlt('GET', '/api/v1.0/gpon/onus', { token });
   if (res.status !== 200 || !Array.isArray(res.json)) {
@@ -69,11 +68,32 @@ export async function obtenerOnusUbiquiti() {
   return res.json;
 }
 
-// Busca, dentro de la lista de ONUs, la que tiene la misma IP asignada que el
-// cliente en el CRM. El campo de la OLT es "router.wanAddress" con formato
-// "10.1.20.6/32" — se compara solo la parte de la IP, ignorando el "/32".
-export function buscarOnuPorIp(onus, ipAsignada) {
-  if (!ipAsignada) return null;
-  const ipLimpia = ipAsignada.split('/')[0].trim();
-  return onus.find((onu) => (onu.router?.wanAddress || '').split('/')[0].trim() === ipLimpia) || null;
+// Trae la lista completa de ONUs de la OLT (todas, de todos los puertos
+// PON). La conexión a esta OLT es intermitente en algunos momentos, así
+// que se reintenta una vez automáticamente antes de darse por vencido.
+export async function obtenerOnusUbiquiti() {
+  try {
+    return await obtenerOnusUnaVez();
+  } catch (e) {
+    return await obtenerOnusUnaVez();
+  }
+}
+
+// Busca, dentro de la lista de ONUs, la que corresponde a un cliente.
+// Primero por MAC (más confiable, no cambia nunca) y, si no hay MAC
+// cargado o no hubo coincidencia, por la IP asignada como respaldo (campo
+// "router.wanAddress" de la OLT, formato "10.1.20.6/32" — se compara solo
+// la parte de la IP, ignorando el "/32").
+export function buscarOnu(onus, { mac, ip } = {}) {
+  if (mac) {
+    const macLimpia = mac.replace(/[^0-9a-f]/gi, '').toLowerCase();
+    const porMac = onus.find((onu) => (onu.mac || '').replace(/[^0-9a-f]/gi, '').toLowerCase() === macLimpia);
+    if (porMac) return porMac;
+  }
+  if (ip) {
+    const ipLimpia = ip.split('/')[0].trim();
+    const porIp = onus.find((onu) => (onu.router?.wanAddress || '').split('/')[0].trim() === ipLimpia);
+    if (porIp) return porIp;
+  }
+  return null;
 }
