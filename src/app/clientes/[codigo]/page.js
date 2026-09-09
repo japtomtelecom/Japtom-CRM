@@ -642,6 +642,8 @@ function PanelEstadoConexion({ cliente }) {
   const [error, setError] = useState(null);
 
   const esTarija = (cliente.ciudad || 'El Alto') === 'Tarija';
+  const esUbiquitiElAlto = (cliente.ciudad || 'El Alto') === 'El Alto' && cliente.olt_marca === 'Ubiquiti';
+  const mostrarOlt = esTarija || esUbiquitiElAlto;
 
   async function consultar() {
     if (!confirm(`¿Confirmas consultar el estado de conexión de ${cliente.nombre}?`)) return;
@@ -671,9 +673,11 @@ function PanelEstadoConexion({ cliente }) {
         <p className="text-xs text-amber-600 mb-3">
           Este cliente no tiene "Usuario PPPoE" configurado. Completalo en "Editar" antes de usar esta función.
         </p>
-      ) : !esTarija ? (
+      ) : !mostrarOlt ? (
         <p className="text-xs text-brand-400 mb-3">
-          En El Alto solo se muestra el estado del PPPoE — la OLT de esta sede todavía no está integrada al CRM.
+          {(cliente.ciudad || 'El Alto') === 'El Alto'
+            ? 'Solo se muestra el estado del PPPoE — este cliente no tiene "OLT" = Ubiquiti seleccionada en su ficha (o está en BT-PON, todavía no integrada al CRM).'
+            : 'En El Alto solo se muestra el estado del PPPoE — la OLT de esta sede todavía no está integrada al CRM.'}
         </p>
       ) : null}
 
@@ -744,17 +748,18 @@ function PanelEstadoConexion({ cliente }) {
             )}
           </div>
 
-          {esTarija && (
+          {mostrarOlt && (
             <div className="rounded-lg p-3" style={{ background: '#F5F7F6' }}>
-              <p className="text-xs text-brand-400 mb-1">OLT (V-Sol)</p>
+              <p className="text-xs text-brand-400 mb-1">OLT ({esTarija ? 'V-Sol' : 'Ubiquiti'})</p>
               {estado.olt?.error ? (
                 <p className="text-sm" style={{ color: '#791F1F' }}>⚠️ {estado.olt.error}</p>
               ) : estado.olt && estado.olt.encontrado === false ? (
-                <p className="text-sm text-brand-400">No se pudo leer el estado de la ONU.</p>
+                <p className="text-sm text-brand-400">No se encontró la ONU de este cliente en la OLT.</p>
               ) : (
                 <>
                   <p className="text-sm font-semibold">
                     {estado.olt?.online ? '🟢 En línea' : '🔴 Desconectada'}
+                    {esUbiquitiElAlto && estado.olt?.autorizada === false && ' · sin autorizar'}
                   </p>
                   {(estado.olt?.rxDbm !== null && estado.olt?.rxDbm !== undefined) && (
                     <div className="grid grid-cols-3 gap-2 mt-2">
@@ -792,9 +797,7 @@ function PanelEstadoConexion({ cliente }) {
       )}
     </div>
   );
-}
-
-function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
+}function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
   const [resolucion, setResolucion] = useState('');
   const [guardando, setGuardando] = useState(false);
 
@@ -1212,6 +1215,7 @@ export default function FichaClientePage() {
         olt_onu_id: form.olt_onu_id ? Number(form.olt_onu_id) : null,
         olt_sn: form.olt_sn,
         olt_marca: form.olt_marca || null,
+        olt_mac: form.olt_mac || null,
       })
       .eq('id', cliente.id);
     setGuardando(false);
@@ -1677,6 +1681,12 @@ export default function FichaClientePage() {
                   <span className="text-brand-400">N° de serie (SN)</span>
                   <p className="font-mono font-medium">{cliente.olt_sn || '—'}</p>
                 </div>
+                {(cliente.ciudad || 'El Alto') === 'El Alto' && (
+                  <div>
+                    <span className="text-brand-400">MAC (Ubiquiti)</span>
+                    <p className="font-mono font-medium">{cliente.olt_mac || '—'}</p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-3">
@@ -1692,6 +1702,17 @@ export default function FichaClientePage() {
                   <label className="label">N° de serie (SN)</label>
                   <input className="input" value={form.olt_sn || ''} onChange={(e) => setForm({ ...form, olt_sn: e.target.value })} />
                 </div>
+                {(form.ciudad || 'El Alto') === 'El Alto' && (
+                  <div>
+                    <label className="label">MAC (Ubiquiti)</label>
+                    <input
+                      className="input"
+                      placeholder="Ej. 78:8a:20:73:01:d6"
+                      value={form.olt_mac || ''}
+                      onChange={(e) => setForm({ ...form, olt_mac: e.target.value })}
+                    />
+                  </div>
+                )}
               </div>
             )}
           </div>

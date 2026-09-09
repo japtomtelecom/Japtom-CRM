@@ -1,7 +1,7 @@
 import { verificarAdmin } from '@/lib/verificarAdmin';
-import { obtenerOnusUbiquiti, buscarOnuPorIp } from '@/lib/oltUbiquiti';
+import { obtenerOnusUbiquiti, buscarOnu } from '@/lib/oltUbiquiti';
 
-export const maxDuration = 15;
+export const maxDuration = 25;
 
 export async function POST(request) {
   const auth = await verificarAdmin(request);
@@ -12,7 +12,7 @@ export async function POST(request) {
 
   const { data: cliente, error: errCliente } = await auth.supabaseAdmin
     .from('clientes')
-    .select('nombre, codigo, ciudad, ip_asignada')
+    .select('nombre, codigo, ciudad, ip_asignada, olt_mac')
     .eq('id', clienteId)
     .single();
   if (errCliente || !cliente) return Response.json({ error: 'Cliente no encontrado.' }, { status: 404 });
@@ -20,20 +20,20 @@ export async function POST(request) {
   if ((cliente.ciudad || 'El Alto') !== 'El Alto') {
     return Response.json({ error: 'Esta OLT es solo para clientes de El Alto.' }, { status: 400 });
   }
-  if (!cliente.ip_asignada) {
+  if (!cliente.ip_asignada && !cliente.olt_mac) {
     return Response.json(
-      { error: 'Este cliente no tiene "IP asignada" cargada en su ficha — es el dato que se usa para encontrar su ONU en esta OLT.' },
+      { error: 'Este cliente no tiene "IP asignada" ni "MAC" cargados en su ficha — al menos uno de los dos hace falta para encontrar su ONU en esta OLT.' },
       { status: 400 }
     );
   }
 
   try {
     const onus = await obtenerOnusUbiquiti();
-    const onu = buscarOnuPorIp(onus, cliente.ip_asignada);
+    const onu = buscarOnu(onus, { mac: cliente.olt_mac, ip: cliente.ip_asignada });
     if (!onu) {
       return Response.json({
         encontrado: false,
-        mensaje: `No se encontró ninguna ONU con la IP ${cliente.ip_asignada} en esta OLT.`,
+        mensaje: `No se encontró ninguna ONU con esos datos (MAC ${cliente.olt_mac || '—'} / IP ${cliente.ip_asignada || '—'}) en esta OLT.`,
       });
     }
     return Response.json({
