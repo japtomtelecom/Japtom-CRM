@@ -666,15 +666,15 @@ function PanelEstadoConexion({ cliente }) {
   }
 
   return (
-    <div className="card p-5">
-      <h2 className="font-semibold text-brand-700 mb-3">🔌 Estado de conexión</h2>
+    <div className="card p-6">
+      <h2 className="font-semibold text-brand-700 text-lg mb-4">🔌 Estado de conexión</h2>
 
       {!cliente.pppoe_usuario ? (
-        <p className="text-xs text-amber-600 mb-3">
+        <p className="text-sm text-amber-600 mb-3">
           Este cliente no tiene "Usuario PPPoE" configurado. Completalo en "Editar" antes de usar esta función.
         </p>
       ) : !mostrarOlt ? (
-        <p className="text-xs text-brand-400 mb-3">
+        <p className="text-sm text-brand-400 mb-3">
           {(cliente.ciudad || 'El Alto') === 'El Alto'
             ? 'Solo se muestra el estado del PPPoE — este cliente no tiene "OLT" = Ubiquiti seleccionada en su ficha (o está en BT-PON, todavía no integrada al CRM).'
             : 'En El Alto solo se muestra el estado del PPPoE — la OLT de esta sede todavía no está integrada al CRM.'}
@@ -684,8 +684,8 @@ function PanelEstadoConexion({ cliente }) {
       <button
         onClick={consultar}
         disabled={cargando || !cliente.pppoe_usuario}
-        className="btn-secondary text-sm"
-        style={{ width: '100%' }}
+        className="btn-secondary"
+        style={{ width: '100%', fontSize: 16, padding: '12px 16px' }}
       >
         {cargando ? 'Consultando…' : '🔌 Ver estado de conexión'}
       </button>
@@ -694,40 +694,44 @@ function PanelEstadoConexion({ cliente }) {
         <div
           style={{
             marginTop: 12,
-            padding: '10px 12px',
-            borderRadius: 6,
-            fontSize: 13,
+            padding: '12px 16px',
+            borderRadius: 8,
+            fontSize: 15,
             fontWeight: 500,
             background: '#FCEBEB',
             color: '#791F1F',
           }}
         >
           <p style={{ margin: 0 }}>⚠️ {error}</p>
-          <button onClick={aceptar} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+          <button onClick={aceptar} className="btn-primary text-sm" style={{ marginTop: 10 }}>
             Aceptar
           </button>
         </div>
       )}
 
       {estado && (
-        <div className="mt-3 space-y-2">
-          <div className="rounded-lg p-3" style={{ background: '#F5F7F6' }}>
-            <p className="text-xs text-brand-400 mb-1">PPPoE (MikroTik)</p>
+        <div className="mt-4 space-y-3">
+          <div className="rounded-lg p-4" style={{ background: '#F5F7F6' }}>
+            <p className="text-sm text-brand-400 mb-1">PPPoE (MikroTik)</p>
             {estado.pppoe?.error ? (
-              <p className="text-sm" style={{ color: '#791F1F' }}>⚠️ {estado.pppoe.error}</p>
+              <p className="text-base" style={{ color: '#791F1F' }}>⚠️ {estado.pppoe.error}</p>
             ) : (
               <>
-                <p className="text-sm font-semibold">
-                  {estado.pppoe.online ? '🟢 Conectado' : '🔴 Desconectado'}
-                  {!estado.pppoe.online && estado.pppoe.desde && (
-                    <span className="font-normal text-brand-400">
+                <p className="text-xl font-bold" style={estado.pppoe.bloqueado ? { color: '#791F1F' } : undefined}>
+                  {estado.pppoe.bloqueado
+                    ? '⛔ Bloqueado'
+                    : estado.pppoe.online
+                      ? '🟢 Conectado'
+                      : '🔴 Desconectado'}
+                  {!estado.pppoe.online && !estado.pppoe.bloqueado && estado.pppoe.desde && (
+                    <span className="font-normal text-brand-400 text-base">
                       {' '}
                       · desde hace {formatearDuracion(estado.pppoe.desde)}
                     </span>
                   )}
                 </p>
                 {estado.pppoe.online && estado.pppoe.conectadoDesde && (
-                  <p className="text-xs text-brand-400 mt-1">
+                  <p className="text-sm text-brand-400 mt-2">
                     Conectado desde{' '}
                     {new Date(estado.pppoe.conectadoDesde).toLocaleString('es-BO', {
                       dateStyle: 'short',
@@ -737,7 +741,7 @@ function PanelEstadoConexion({ cliente }) {
                   </p>
                 )}
                 {estado.pppoe.online && estado.pppoe.ip && (
-                  <p className="text-xs text-brand-400 mt-2">
+                  <p className="text-sm text-brand-400 mt-3">
                     IP asignada:{' '}
                     <span className="block mt-1">
                       <EnlaceIp ip={estado.pppoe.ip} ciudad={cliente.ciudad} />
@@ -749,39 +753,39 @@ function PanelEstadoConexion({ cliente }) {
           </div>
 
           {mostrarOlt && (
-            <div className="rounded-lg p-3" style={{ background: '#F5F7F6' }}>
-              <p className="text-xs text-brand-400 mb-1">OLT ({esTarija ? 'V-Sol' : 'Ubiquiti'})</p>
+            <div className="rounded-lg p-4" style={{ background: '#F5F7F6' }}>
+              <p className="text-sm text-brand-400 mb-1">OLT ({esTarija ? 'V-Sol' : 'Ubiquiti'})</p>
               {estado.olt?.error ? (
-                <p className="text-sm" style={{ color: '#791F1F' }}>⚠️ {estado.olt.error}</p>
+                <p className="text-base" style={{ color: '#791F1F' }}>⚠️ {estado.olt.error}</p>
               ) : estado.olt && estado.olt.encontrado === false ? (
-                <p className="text-sm text-brand-400">No se encontró la ONU de este cliente en la OLT.</p>
+                <p className="text-base text-brand-400">No se encontró la ONU de este cliente en la OLT.</p>
               ) : (
                 <>
-                  <p className="text-sm font-semibold">
+                  <p className="text-xl font-bold">
                     {estado.olt?.online ? '🟢 En línea' : '🔴 Desconectada'}
                     {esUbiquitiElAlto && estado.olt?.autorizada === false && ' · sin autorizar'}
                   </p>
                   {(estado.olt?.rxDbm !== null && estado.olt?.rxDbm !== undefined) && (
-                    <div className="grid grid-cols-3 gap-2 mt-2">
-                      <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
-                        <p className="text-xs text-brand-400">Rx</p>
+                    <div className="grid grid-cols-3 gap-3 mt-3">
+                      <div className="rounded-lg p-3 text-center" style={{ background: '#fff' }}>
+                        <p className="text-sm text-brand-400">Rx</p>
                         <p
-                          className="text-sm font-semibold"
+                          className="text-2xl font-bold"
                           style={{ color: COLOR_NIVEL_OLT[estado.olt.nivelRx] || '#666' }}
                         >
                           {estado.olt.rxDbm}
                         </p>
-                        <p className="text-xs text-brand-400">dBm</p>
+                        <p className="text-sm text-brand-400">dBm</p>
                       </div>
-                      <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
-                        <p className="text-xs text-brand-400">Tx</p>
-                        <p className="text-sm font-semibold">{estado.olt.txDbm ?? '—'}</p>
-                        <p className="text-xs text-brand-400">dBm</p>
+                      <div className="rounded-lg p-3 text-center" style={{ background: '#fff' }}>
+                        <p className="text-sm text-brand-400">Tx</p>
+                        <p className="text-2xl font-bold">{estado.olt.txDbm ?? '—'}</p>
+                        <p className="text-sm text-brand-400">dBm</p>
                       </div>
-                      <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
-                        <p className="text-xs text-brand-400">Temp.</p>
-                        <p className="text-sm font-semibold">{estado.olt.temperaturaC ?? '—'}</p>
-                        <p className="text-xs text-brand-400">°C</p>
+                      <div className="rounded-lg p-3 text-center" style={{ background: '#fff' }}>
+                        <p className="text-sm text-brand-400">Temp.</p>
+                        <p className="text-2xl font-bold">{estado.olt.temperaturaC ?? '—'}</p>
+                        <p className="text-sm text-brand-400">°C</p>
                       </div>
                     </div>
                   )}
@@ -790,7 +794,7 @@ function PanelEstadoConexion({ cliente }) {
             </div>
           )}
 
-          <button onClick={aceptar} className="btn-primary text-xs">
+          <button onClick={aceptar} className="btn-primary text-sm">
             Aceptar
           </button>
         </div>
@@ -1511,6 +1515,8 @@ export default function FichaClientePage() {
           )}
         </div>
 
+        {isAdmin && !editando && <PanelEstadoConexion cliente={cliente} />}
+
         <PanelApuntes clienteId={cliente.id} userEmail={user?.email} />
 
         <PanelFallas clienteId={cliente.id} ciudad={cliente.ciudad} userEmail={user?.email} />
@@ -1591,8 +1597,6 @@ export default function FichaClientePage() {
         </div>
 
         <div className="md:col-span-1 space-y-6">
-          {isAdmin && !editando && <PanelEstadoConexion cliente={cliente} />}
-
           {isAdmin && !editando && cliente.pppoe_usuario && (
             <GraficoTrafico
               titulo={`📡 Tráfico en tiempo real — ${cliente.nombre}`}
