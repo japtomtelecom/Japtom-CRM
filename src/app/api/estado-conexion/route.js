@@ -15,10 +15,7 @@ import { obtenerOnusUbiquiti, buscarOnu } from '@/lib/oltUbiquiti';
 
 // Estado de conexión "en vivo" de un cliente puntual, para el botón
 // "Ver estado de conexión" de la ficha:
-//   - PPPoE (MikroTik): en las dos sedes (Tarija y El Alto). Además de si
-//     hay sesión activa, se revisa si el usuario está deshabilitado
-//     (bloqueado — típicamente por falta de pago, con el botón "🔒
-//     Bloquear servicio"), para distinguirlo de un simple corte de señal.
+//   - PPPoE (MikroTik): en las dos sedes (Tarija y El Alto).
 //   - OLT: en Tarija siempre es V-Sol (por SSH). En El Alto, solo si el
 //     cliente tiene "OLT" = "Ubiquiti" en su ficha (se consulta por su API
 //     HTTPS) — si es "BT-PON" o no tiene marca cargada, esa OLT todavía no
@@ -59,19 +56,13 @@ async function consultarPppoe(supabaseAdmin, cliente, clienteId) {
     conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
     await conn.connect();
 
-    const [activos, secretos] = await Promise.all([
-      conn.write('/ppp/active/print', [`?name=${cliente.pppoe_usuario}`, '=.proplist=name,uptime,address']),
-      conn.write('/ppp/secret/print', [`?name=${cliente.pppoe_usuario}`, '=.proplist=disabled']),
+    const activos = await conn.write('/ppp/active/print', [
+      `?name=${cliente.pppoe_usuario}`,
+      '=.proplist=name,uptime,address',
     ]);
     conn.close();
 
     const online = activos.length > 0;
-    // El usuario PPPoE queda "disabled" en el MikroTik cuando se usa el
-    // botón "🔒 Bloquear servicio" (típicamente por falta de pago) — se
-    // distingue de un simple "Desconectado" (que puede ser solo un corte
-    // de señal, con el usuario habilitado esperando para reconectar).
-    const bloqueado = secretos.length > 0 && (secretos[0].disabled === 'true' || secretos[0].disabled === true);
-
     const desde = await actualizarHistorialPppoe(supabaseAdmin, clienteId, online);
 
     // Si está conectado, RouterOS ya sabe hace cuánto exactamente (campo
@@ -94,7 +85,7 @@ async function consultarPppoe(supabaseAdmin, cliente, clienteId) {
       ip = activos[0].address || null;
     }
 
-    return { online, desde, conectadoDesde, ip, bloqueado };
+    return { online, desde, conectadoDesde, ip };
   } catch (e) {
     if (conn) try { conn.close(); } catch {}
     return { error: 'No se pudo conectar con el MikroTik: ' + e.message };

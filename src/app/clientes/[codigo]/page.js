@@ -717,13 +717,9 @@ function PanelEstadoConexion({ cliente }) {
               <p className="text-base" style={{ color: '#791F1F' }}>⚠️ {estado.pppoe.error}</p>
             ) : (
               <>
-                <p className="text-xl font-bold" style={estado.pppoe.bloqueado ? { color: '#791F1F' } : undefined}>
-                  {estado.pppoe.bloqueado
-                    ? '⛔ Bloqueado'
-                    : estado.pppoe.online
-                      ? '🟢 Conectado'
-                      : '🔴 Desconectado'}
-                  {!estado.pppoe.online && !estado.pppoe.bloqueado && estado.pppoe.desde && (
+                <p className="text-xl font-bold">
+                  {estado.pppoe.online ? '🟢 Conectado' : '🔴 Desconectado'}
+                  {!estado.pppoe.online && estado.pppoe.desde && (
                     <span className="font-normal text-brand-400 text-base">
                       {' '}
                       · desde hace {formatearDuracion(estado.pppoe.desde)}
