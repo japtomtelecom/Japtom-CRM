@@ -975,9 +975,9 @@ function PanelFallas({ clienteId, ciudad, userEmail }) {
 
 // Control de OLT para clientes de El Alto — distinto al panel de Tarija
 // (que es V-Sol, por SSH). Acá se consulta la OLT Ubiquiti por su API HTTPS
-// (ver src/lib/oltUbiquiti.js). Si el cliente está marcado como "BT-PON" (la
-// otra OLT de El Alto), o no tiene marca cargada, se avisa que todavía no
-// está integrada — no se intenta conectar a nada.
+// (ver src/lib/oltUbiquiti.js), y la OLT BT-PON por su API HTTP propia
+// (ver src/lib/oltBtpon.js). Si el cliente no tiene marca cargada, se avisa
+// que debe completarla en "Editar".
 function PanelOltElAlto({ cliente }) {
   const [consultando, setConsultando] = useState(false);
   const [resultado, setResultado] = useState(null);
@@ -998,6 +998,20 @@ function PanelOltElAlto({ cliente }) {
     }
   }
 
+  async function verEstadoBtpon() {
+    setConsultando(true);
+    setError(null);
+    setResultado(null);
+    try {
+      const json = await llamarApiAdmin('/api/olt-btpon/estado', { clienteId: cliente.id });
+      setResultado(json);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setConsultando(false);
+    }
+  }
+
   function aceptar() {
     setResultado(null);
     setError(null);
@@ -1006,10 +1020,103 @@ function PanelOltElAlto({ cliente }) {
   if (cliente.olt_marca === 'BT-PON') {
     return (
       <div className="card p-5">
-        <h2 className="font-semibold text-brand-700 mb-3">Control OLT</h2>
-        <p className="text-xs text-brand-400">
-          Este cliente está en la OLT BT-PON — todavía no está integrada al CRM.
-        </p>
+        <h2 className="font-semibold text-brand-700 mb-3">Control OLT (BT-PON)</h2>
+
+        {(!cliente.olt_puerto_pon || !cliente.olt_onu_id) && (
+          <p className="text-xs text-amber-600 mb-3">
+            Este cliente no tiene "Puerto PON" e "ID de ONU" configurados — son los datos que se usan para encontrar su ONU en esta OLT.
+          </p>
+        )}
+
+        <button
+          onClick={verEstadoBtpon}
+          disabled={consultando || !cliente.olt_puerto_pon || !cliente.olt_onu_id}
+          className="btn-secondary text-sm"
+          style={{ width: '100%' }}
+        >
+          {consultando ? 'Consultando…' : '🔌 Ver estado de conexión'}
+        </button>
+
+        {error && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 500,
+              background: '#FCEBEB',
+              color: '#791F1F',
+            }}
+          >
+            <p style={{ margin: 0 }}>⚠️ {error}</p>
+            <button onClick={aceptar} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+              Aceptar
+            </button>
+          </div>
+        )}
+
+        {resultado && resultado.ok && !resultado.encontrado && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 6,
+              fontSize: 13,
+              background: '#FEF6E7',
+              color: '#7A5B12',
+            }}
+          >
+            {resultado.mensaje}
+          </div>
+        )}
+
+        {resultado && resultado.ok && resultado.encontrado && (
+          <div className="mt-3 space-y-2 text-sm">
+            <div className="rounded-lg p-3" style={{ background: '#F5F7F6' }}>
+              <span className="text-xs text-brand-400">Estado</span>
+              <p className="text-lg font-semibold">
+                {resultado.status === 'Online' ? '🟢 En línea' : resultado.status === 'Offline' ? '🔴 Desconectada' : `⚪ ${resultado.status}`}
+              </p>
+            </div>
+            <div>
+              <span className="text-brand-400 text-xs">Nombre en la OLT</span>
+              <p className="font-mono font-medium">{resultado.onu_name}</p>
+            </div>
+            <div>
+              <span className="text-brand-400 text-xs">MAC</span>
+              <p className="font-mono font-medium">{resultado.macaddr}</p>
+            </div>
+            <div>
+              <span className="text-brand-400 text-xs">Registrada desde</span>
+              <p className="font-mono font-medium">{resultado.register_time}</p>
+            </div>
+
+            {resultado.rxDbm != null && (
+              <div className="grid grid-cols-3 gap-2 mt-2">
+                <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                  <p className="text-xs text-brand-400">Rx</p>
+                  <p className="text-sm font-semibold">{resultado.rxDbm.toFixed(2)}</p>
+                  <p className="text-xs text-brand-400">dBm</p>
+                </div>
+                <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                  <p className="text-xs text-brand-400">Tx</p>
+                  <p className="text-sm font-semibold">
+                    {resultado.txDbm != null ? resultado.txDbm.toFixed(2) : '—'}
+                  </p>
+                  <p className="text-xs text-brand-400">dBm</p>
+                </div>
+                <div className="rounded p-2 text-center" style={{ background: '#fff' }}>
+                  <p className="text-xs text-brand-400">Temp.</p>
+                  <p className="text-sm font-semibold">
+                    {resultado.temperaturaC != null ? resultado.temperaturaC.toFixed(0) : '—'}
+                  </p>
+                  <p className="text-xs text-brand-400">°C</p>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     );
   }
