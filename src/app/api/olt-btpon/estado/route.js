@@ -63,6 +63,11 @@ export async function POST(request) {
       ...(optica || {}),
     });
   } catch (e) {
-    return Response.json({ error: "No se pudo conectar con la OLT: " + e.message }, { status: 502 });
+    console.error("Error consultando OLT BTPON (estado):", e);
+    const detalle = e.cause?.code || e.cause?.message || "";
+    return Response.json(
+      { error: "No se pudo conectar con la OLT: " + e.message + (detalle ? ` (${detalle})` : "") },
+      { status: 502 }
+    );
   }
 }

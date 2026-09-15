@@ -643,7 +643,8 @@ function PanelEstadoConexion({ cliente }) {
 
   const esTarija = (cliente.ciudad || 'El Alto') === 'Tarija';
   const esUbiquitiElAlto = (cliente.ciudad || 'El Alto') === 'El Alto' && cliente.olt_marca === 'Ubiquiti';
-  const mostrarOlt = esTarija || esUbiquitiElAlto;
+  const esBtponElAlto = (cliente.ciudad || 'El Alto') === 'El Alto' && cliente.olt_marca === 'BT-PON';
+  const mostrarOlt = esTarija || esUbiquitiElAlto || esBtponElAlto;
 
   async function consultar() {
     if (!confirm(`¿Confirmas consultar el estado de conexión de ${cliente.nombre}?`)) return;
@@ -676,7 +677,7 @@ function PanelEstadoConexion({ cliente }) {
       ) : !mostrarOlt ? (
         <p className="text-sm text-brand-400 mb-3">
           {(cliente.ciudad || 'El Alto') === 'El Alto'
-            ? 'Solo se muestra el estado del PPPoE — este cliente no tiene "OLT" = Ubiquiti seleccionada en su ficha (o está en BT-PON, todavía no integrada al CRM).'
+            ? 'Solo se muestra el estado del PPPoE — este cliente no tiene "OLT" (Ubiquiti / BT-PON) seleccionada en su ficha. Completala en "Editar".'
             : 'En El Alto solo se muestra el estado del PPPoE — la OLT de esta sede todavía no está integrada al CRM.'}
         </p>
       ) : null}
@@ -750,7 +751,9 @@ function PanelEstadoConexion({ cliente }) {
 
           {mostrarOlt && (
             <div className="rounded-lg p-4" style={{ background: '#F5F7F6' }}>
-              <p className="text-sm text-brand-400 mb-1">OLT ({esTarija ? 'V-Sol' : 'Ubiquiti'})</p>
+              <p className="text-sm text-brand-400 mb-1">
+                OLT ({esTarija ? 'V-Sol' : esUbiquitiElAlto ? 'Ubiquiti' : 'BT-PON'})
+              </p>
               {estado.olt?.error ? (
                 <p className="text-base" style={{ color: '#791F1F' }}>⚠️ {estado.olt.error}</p>
               ) : estado.olt && estado.olt.encontrado === false ? (
@@ -1067,7 +1070,10 @@ function PanelOltElAlto({ cliente }) {
               color: '#7A5B12',
             }}
           >
-            {resultado.mensaje}
+            <p style={{ margin: 0 }}>{resultado.mensaje}</p>
+            <button onClick={aceptar} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+              Aceptar
+            </button>
           </div>
         )}
 
@@ -1115,6 +1121,10 @@ function PanelOltElAlto({ cliente }) {
                 </div>
               </div>
             )}
+
+            <button onClick={aceptar} className="btn-primary text-xs mt-2">
+              Aceptar
+            </button>
           </div>
         )}
       </div>

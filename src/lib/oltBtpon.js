@@ -20,7 +20,7 @@ let sessionToken = null;
 async function login() {
   const res = await fetch(`http://${OLT_HOST}/userlogin?form=login`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "Connection": "close" },
     body: JSON.stringify({
       method: "set",
       param: { name: OLT_USER, key: OLT_PASSWORD_HASH },
@@ -42,11 +42,17 @@ async function peticionConToken(url) {
     sessionToken = await login();
   }
 
-  let res = await fetch(url, { method: "GET", headers: { "X-Token": sessionToken } });
+  let res = await fetch(url, {
+    method: "GET",
+    headers: { "X-Token": sessionToken, "Connection": "close" },
+  });
 
   if (res.status === 401 || res.status === 403) {
     sessionToken = await login();
-    res = await fetch(url, { method: "GET", headers: { "X-Token": sessionToken } });
+    res = await fetch(url, {
+      method: "GET",
+      headers: { "X-Token": sessionToken, "Connection": "close" },
+    });
   }
 
   return res;

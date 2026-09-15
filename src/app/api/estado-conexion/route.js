@@ -12,14 +12,15 @@ import {
   detectarErrorCli,
 } from '@/lib/oltSsh';
 import { obtenerOnusUbiquiti, buscarOnu } from '@/lib/oltUbiquiti';
+import { obtenerEstadoOnu, obtenerOpticaOnu } from '@/lib/oltBtpon';
 
 // Estado de conexión "en vivo" de un cliente puntual, para el botón
 // "Ver estado de conexión" de la ficha:
 //   - PPPoE (MikroTik): en las dos sedes (Tarija y El Alto).
-//   - OLT: en Tarija siempre es V-Sol (por SSH). En El Alto, solo si el
-//     cliente tiene "OLT" = "Ubiquiti" en su ficha (se consulta por su API
-//     HTTPS) — si es "BT-PON" o no tiene marca cargada, esa OLT todavía no
-//     está integrada al CRM y no se intenta consultar nada.
+//   - OLT: en Tarija siempre es V-Sol (por SSH). En El Alto, según la
+//     "OLT" cargada en la ficha del cliente: "Ubiquiti" (API HTTPS) o
+//     "BT-PON" (API HTTP propia, ver src/lib/oltBtpon.js) — si no tiene
+//     marca cargada, no se intenta consultar nada.
 //
 // Cada consulta también actualiza `estado_pppoe` (ver
 // supabase/estado_pppoe_migracion.sql) para poder mostrar "desde hace
@@ -147,6 +148,41 @@ async function consultarOltUbiquiti(cliente) {
   }
 }
 
+// Misma idea, pero para la OLT BT-PON (SEL1884) de El Alto — API HTTP
+// propia (ver src/lib/oltBtpon.js), buscando la ONU por su "Puerto PON" e
+// "ID de ONU" guardados en la ficha del cliente.
+async function consultarOltBtpon(cliente) {
+  if (!cliente.olt_puerto_pon || !cliente.olt_onu_id) {
+    return { error: 'Este cliente no tiene "Puerto PON" e "ID de ONU" configurados en su ficha.' };
+  }
+  try {
+    const onu = await obtenerEstadoOnu(cliente.olt_puerto_pon, cliente.olt_onu_id);
+    if (!onu) {
+      return { encontrado: false };
+    }
+
+    let optica = null;
+    try {
+      optica = await obtenerOpticaOnu(cliente.olt_puerto_pon, cliente.olt_onu_id);
+    } catch {
+      // La potencia óptica es un dato "extra" — si falla, se sigue
+      // mostrando el estado básico.
+    }
+
+    return {
+      encontrado: true,
+      online: onu.status === 'Online',
+      rxDbm: optica?.rxDbm ?? null,
+      txDbm: optica?.txDbm ?? null,
+      temperaturaC: optica?.temperaturaC ?? null,
+    };
+  } catch (e) {
+    console.error('Error consultando OLT BTPON (estado-conexion):', e);
+    const detalle = e.cause?.code || e.cause?.message || '';
+    return { error: 'No se pudo conectar con la OLT: ' + e.message + (detalle ? ` (${detalle})` : '') };
+  }
+}
+
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
@@ -170,6 +206,7 @@ export async function POST(request) {
 
   const esTarija = cliente.ciudad === 'Tarija';
   const esUbiquitiElAlto = cliente.ciudad === 'El Alto' && cliente.olt_marca === 'Ubiquiti';
+  const esBtponElAlto = cliente.ciudad === 'El Alto' && cliente.olt_marca === 'BT-PON';
 
   const [pppoe, olt] = await Promise.all([
     consultarPppoe(auth.supabaseAdmin, cliente, clienteId),
@@ -177,7 +214,9 @@ export async function POST(request) {
       ? consultarOlt(cliente)
       : esUbiquitiElAlto
         ? consultarOltUbiquiti(cliente)
-        : Promise.resolve(null),
+        : esBtponElAlto
+          ? consultarOltBtpon(cliente)
+          : Promise.resolve(null),
   ]);
 
   return Response.json({ ok: true, ciudad: cliente.ciudad, oltMarca: cliente.olt_marca || null, pppoe, olt });
