@@ -985,6 +985,8 @@ function PanelOltElAlto({ cliente }) {
   const [consultando, setConsultando] = useState(false);
   const [resultado, setResultado] = useState(null);
   const [error, setError] = useState(null);
+  const [reiniciando, setReiniciando] = useState(false);
+  const [resetMsg, setResetMsg] = useState(null);
 
   async function verPotencia() {
     if (!confirm(`¿Confirmas consultar la potencia óptica de ${cliente.nombre} en la OLT Ubiquiti?`)) return;
@@ -1015,6 +1017,20 @@ function PanelOltElAlto({ cliente }) {
     }
   }
 
+  async function reiniciarSesionBtpon() {
+    if (!confirm('¿Confirmas reiniciar la sesión de la OLT BT-PON? Usa esto solo si las consultas se están colgando.')) return;
+    setReiniciando(true);
+    setResetMsg(null);
+    try {
+      const json = await llamarApiAdmin('/api/olt-btpon/reset', {});
+      setResetMsg({ ok: true, mensaje: json.mensaje });
+    } catch (e) {
+      setResetMsg({ ok: false, error: e.message });
+    } finally {
+      setReiniciando(false);
+    }
+  }
+
   function aceptar() {
     setResultado(null);
     setError(null);
@@ -1039,6 +1055,37 @@ function PanelOltElAlto({ cliente }) {
         >
           {consultando ? 'Consultando…' : '🔌 Ver estado de conexión'}
         </button>
+
+        <button
+          onClick={reiniciarSesionBtpon}
+          disabled={reiniciando}
+          className="btn-secondary text-sm"
+          style={{ width: '100%', marginTop: 8, color: '#8a6d00' }}
+        >
+          {reiniciando ? 'Reiniciando sesión…' : '🔄 Reiniciar sesión OLT (si se cuelga)'}
+        </button>
+
+        {resetMsg && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 500,
+              background: resetMsg.ok ? '#E1F5EE' : '#FCEBEB',
+              color: resetMsg.ok ? '#085041' : '#791F1F',
+            }}
+          >
+            <p style={{ margin: 0 }}>
+              {resetMsg.ok ? '✅ ' : '⚠️ '}
+              {resetMsg.ok ? resetMsg.mensaje : resetMsg.error}
+            </p>
+            <button onClick={() => setResetMsg(null)} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+              Aceptar
+            </button>
+          </div>
+        )}
 
         {error && (
           <div
