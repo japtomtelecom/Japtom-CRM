@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import GraficoTrafico from '@/components/GraficoTrafico';
 import PanelTraficoEnlaces from '@/components/PanelTraficoEnlaces';
@@ -16,6 +17,44 @@ function StatCard({ label, value, accent }) {
       <div className={`text-2xl font-bold mt-1 ${accent ? 'text-accent' : 'text-brand-800'}`}>
         {value}
       </div>
+    </div>
+  );
+}
+
+// Alarma de instalaciones pendientes (instalación física + contrato +
+// primer pago). Solo se muestra si hay al menos un cliente pendiente —
+// así no ocupa espacio cuando todo está al día. Lista hasta 6 nombres y
+// enlaza a Clientes para ver el resto.
+function AlarmaInstalacionesPendientes({ clientes }) {
+  if (!clientes || clientes.length === 0) return null;
+
+  return (
+    <div
+      className="card p-5 mb-6"
+      style={{ background: '#FEF6E7', borderColor: '#F4D9A0' }}
+    >
+      <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+        <h2 className="font-semibold" style={{ color: '#7A5B12' }}>
+          🟠 {clientes.length} instalación{clientes.length === 1 ? '' : 'es'} pendiente{clientes.length === 1 ? '' : 's'}
+        </h2>
+        <Link href="/clientes" className="text-sm hover:underline" style={{ color: '#7A5B12' }}>
+          Ver en Clientes →
+        </Link>
+      </div>
+      <ul className="text-sm space-y-1" style={{ color: '#7A5B12' }}>
+        {clientes.slice(0, 6).map((c) => (
+          <li key={c.id}>
+            <Link href={`/clientes/${c.codigo}`} className="hover:underline">
+              {c.nombre} ({c.codigo})
+            </Link>
+          </li>
+        ))}
+      </ul>
+      {clientes.length > 6 && (
+        <p className="text-xs mt-2" style={{ color: '#7A5B12' }}>
+          y {clientes.length - 6} más…
+        </p>
+      )}
     </div>
   );
 }
@@ -45,9 +84,21 @@ export default function DashboardPage() {
     load();
   }, []);
 
+  const clientesFiltrados = useMemo(() => {
+    if (!clientes) return [];
+    return ciudad === 'todas' ? clientes : clientes.filter((c) => c.ciudad === ciudad);
+  }, [clientes, ciudad]);
+
+  // Solo clientes activos — a uno inactivo/dado de baja no tiene sentido
+  // seguirle recordando una instalación pendiente.
+  const instalacionesPendientes = useMemo(
+    () => clientesFiltrados.filter((c) => c.activo && c.instalacion_pendiente),
+    [clientesFiltrados]
+  );
+
   const kpi = useMemo(() => {
     if (!clientes || !pagos) return null;
-    const clientesF = ciudad === 'todas' ? clientes : clientes.filter((c) => c.ciudad === ciudad);
+    const clientesF = clientesFiltrados;
     const pagosF = ciudad === 'todas' ? pagos : pagos.filter((p) => p.clientes?.ciudad === ciudad);
 
     const hoy = new Date();
@@ -94,7 +145,7 @@ export default function DashboardPage() {
       facturado_mes: facturadoMes,
       no_facturado_mes: noFacturadoMes,
     };
-  }, [clientes, pagos, ciudad]);
+  }, [clientes, pagos, ciudad, clientesFiltrados]);
 
   return (
     <AppShell>
@@ -117,6 +168,8 @@ export default function DashboardPage() {
           No se pudo cargar el dashboard: {error}
         </div>
       )}
+
+      <AlarmaInstalacionesPendientes clientes={instalacionesPendientes} />
 
       {!kpi && !error && <p className="text-brand-400">Cargando indicadores…</p>}
 
