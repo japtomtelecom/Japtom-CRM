@@ -27,6 +27,24 @@ function Badge({ cliente }) {
   return <span className="badge-vencido">Vencido</span>;
 }
 
+// Indicador de instalación pendiente (instalación física + contrato
+// firmado + primer pago registrado). `instalacion_pendiente` ya viene
+// calculado desde la vista v_clientes_estado.
+function BadgeInstalacion({ cliente }) {
+  if (!cliente.instalacion_pendiente) {
+    return <span className="badge-al-dia" title="Instalación física, contrato y primer pago completos">✅ Completa</span>;
+  }
+  const faltantes = [];
+  if (!cliente.instalacion_fisica_hecha) faltantes.push('instalación física');
+  if (!cliente.contrato_firmado) faltantes.push('contrato firmado');
+  if (!cliente.primer_pago_registrado) faltantes.push('primer pago');
+  return (
+    <span className="badge-vencido" title={`Falta: ${faltantes.join(', ')}`}>
+      🟠 Pendiente
+    </span>
+  );
+}
+
 function ModalMeses({ cliente, onClose }) {
   const [meses, setMeses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -237,6 +255,7 @@ export default function ClientesPage() {
     if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
     if (filtro === 'por_vencer') lista = lista.filter((c) => c.activo && c.estado === 'Por vencer');
     if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
+    if (filtro === 'instalacion_pendiente') lista = lista.filter((c) => c.instalacion_pendiente);
     if (diaPagoFiltro !== 'todos') {
       lista = lista.filter((c) => Number(c.dia_pago) === Number(diaPagoFiltro));
     }
@@ -291,6 +310,7 @@ export default function ClientesPage() {
           <option value="al_dia">Al día</option>
           <option value="por_vencer">Por vencer</option>
           <option value="vencidos">Vencidos</option>
+          <option value="instalacion_pendiente">Instalación pendiente</option>
         </select>
         <select
           className="input md:max-w-[180px]"
@@ -362,6 +382,7 @@ export default function ClientesPage() {
               <th className="p-3">Precio</th>
               <th className="p-3">Día de pago</th>
               <th className="p-3">Estado</th>
+              <th className="p-3" title="Instalación física + contrato firmado + primer pago">Instalación</th>
               <th className="p-3" title="¿Ya se le envió mensaje de WhatsApp?">Mensaje</th>
               <th className="p-3"></th>
             </tr>
@@ -369,14 +390,14 @@ export default function ClientesPage() {
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={9} className="p-4 text-brand-400">
+                <td colSpan={10} className="p-4 text-brand-400">
                   Cargando…
                 </td>
               </tr>
             )}
             {!loading && filtrados.length === 0 && (
               <tr>
-                <td colSpan={9} className="p-4 text-brand-400">
+                <td colSpan={10} className="p-4 text-brand-400">
                   No se encontraron clientes.
                 </td>
               </tr>
@@ -398,6 +419,9 @@ export default function ClientesPage() {
                   <td className="p-3">{c.dia_pago ?? '—'}</td>
                   <td className="p-3">
                     <Badge cliente={c} />
+                  </td>
+                  <td className="p-3">
+                    <BadgeInstalacion cliente={c} />
                   </td>
                   <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
                     {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
@@ -468,4 +492,3 @@ export default function ClientesPage() {
     </AppShell>
   );
 }
-
