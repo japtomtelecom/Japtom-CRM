@@ -151,6 +151,82 @@ function ModalBorrarCliente({ cliente, onConfirmar, onClose }) {
   );
 }
 
+// Checklist de instalación pendiente: instalación física + contrato
+// firmado + primer pago registrado. Los primeros dos son checkboxes que
+// el admin puede marcar directamente aquí (sin entrar al modo "Editar"
+// general) — igual que Apuntes/Fallas, guardan al toque. El primer pago
+// es de solo lectura porque se calcula solo (existe algún registro en
+// `pagos`); si falta, se ofrece un enlace directo a "Registrar pago".
+function PanelChecklistInstalacion({ cliente, isAdmin, onRecargar }) {
+  const [guardandoCampo, setGuardandoCampo] = useState(null);
+  const [error, setError] = useState('');
+
+  async function toggle(campo, valorActual) {
+    if (!isAdmin) return;
+    setGuardandoCampo(campo);
+    setError('');
+    const { error: err } = await supabase
+      .from('clientes')
+      .update({ [campo]: !valorActual })
+      .eq('id', cliente.id);
+    setGuardandoCampo(null);
+    if (err) {
+      setError('Error al actualizar: ' + err.message);
+      return;
+    }
+    onRecargar?.(true);
+  }
+
+  const fisica = !!cliente.instalacion_fisica_hecha;
+  const contrato = !!cliente.contrato_firmado;
+  const pago = !!cliente.primer_pago_registrado;
+  const pendiente = !!cliente.instalacion_pendiente;
+
+  return (
+    <div className="card p-5">
+      <h2 className="font-semibold text-brand-700 mb-3">
+        {pendiente ? '🟠 Checklist de instalación — Pendiente' : '✅ Checklist de instalación — Completa'}
+      </h2>
+
+      <ul className="space-y-2 text-sm">
+        <li className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={fisica}
+            disabled={!isAdmin || guardandoCampo !== null}
+            onChange={() => toggle('instalacion_fisica_hecha', fisica)}
+          />
+          <span>Instalación física realizada</span>
+          {guardandoCampo === 'instalacion_fisica_hecha' && <span className="text-xs text-brand-400">Guardando…</span>}
+        </li>
+        <li className="flex items-center gap-2">
+          <input
+            type="checkbox"
+            checked={contrato}
+            disabled={!isAdmin || guardandoCampo !== null}
+            onChange={() => toggle('contrato_firmado', contrato)}
+          />
+          <span>Contrato firmado</span>
+          {guardandoCampo === 'contrato_firmado' && <span className="text-xs text-brand-400">Guardando…</span>}
+        </li>
+        <li className="flex items-center gap-2 justify-between">
+          <span className="flex items-center gap-2">
+            <input type="checkbox" checked={pago} disabled readOnly />
+            Primer pago registrado
+          </span>
+          {!pago && (
+            <Link href={`/pagos?cliente_id=${cliente.id}`} className="text-xs text-brand-600 hover:underline">
+              Registrar pago →
+            </Link>
+          )}
+        </li>
+      </ul>
+
+      {error && <p className="text-sm mt-2" style={{ color: '#791F1F' }}>{error}</p>}
+    </div>
+  );
+}
+
 function PanelApuntes({ clienteId, userEmail }) {
   const [notas, setNotas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -1674,6 +1750,8 @@ export default function FichaClientePage() {
             </div>
           )}
         </div>
+
+        {!editando && <PanelChecklistInstalacion cliente={cliente} isAdmin={isAdmin} onRecargar={cargar} />}
 
         {isAdmin && !editando && <PanelEstadoConexion cliente={cliente} />}
 
