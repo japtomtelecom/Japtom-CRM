@@ -45,6 +45,22 @@ function BadgeInstalacion({ cliente }) {
   );
 }
 
+// Indicador de retiro: solo se muestra algo cuando el cliente está
+// retirado (estado_retiro viene de v_clientes_estado). Mientras está
+// activo no ocupa espacio visual en la columna.
+function BadgeRetiro({ cliente }) {
+  if (cliente.estado_retiro !== 'retirado') return <span className="text-brand-200">—</span>;
+  const completo = (cliente.equipos_devueltos_count ?? 0) >= 4;
+  return (
+    <span
+      className={completo ? 'badge-al-dia' : 'badge-vencido'}
+      title={cliente.fecha_retiro ? `Retirado el ${new Date(cliente.fecha_retiro).toLocaleDateString('es-BO')}` : 'Retirado'}
+    >
+      📦 {cliente.equipos_devueltos_count ?? 0}/4
+    </span>
+  );
+}
+
 function ModalMeses({ cliente, onClose }) {
   const [meses, setMeses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -159,9 +175,12 @@ export default function ClientesPage() {
   // de `clientes` (las dos sedes juntas) sin filtrar por ciudad, así que
   // con "Tarija" elegido igual aparecían candidatos y días de El Alto —
   // cada ciudad tiene que ser independiente en todo, no solo la tabla.
+  // También se excluyen los clientes retirados: no tiene sentido mandarles
+  // recordatorio de pago.
   const clientesDeLaCiudad = useMemo(() => {
-    if (ciudadFiltro === 'todas') return clientes;
-    return clientes.filter((c) => c.ciudad === ciudadFiltro);
+    let lista = clientes.filter((c) => c.estado_retiro !== 'retirado');
+    if (ciudadFiltro === 'todas') return lista;
+    return lista.filter((c) => c.ciudad === ciudadFiltro);
   }, [clientes, ciudadFiltro]);
 
   // Clientes activos, vencidos O por vencer (falta 1 día), con ese día de
@@ -247,15 +266,26 @@ export default function ClientesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ciudadFiltro, diasDisponibles]);
 
+  // Los clientes retirados quedan fuera de la vista por defecto (y de
+  // cualquier otro filtro de estado) — solo aparecen cuando se elige
+  // explícitamente el filtro "Retirados". No se borran de la base, solo
+  // se ocultan de la vista normal de trabajo.
   const filtrados = useMemo(() => {
     let lista = clientes;
     if (ciudadFiltro !== 'todas') lista = lista.filter((c) => c.ciudad === ciudadFiltro);
-    if (filtro === 'activos') lista = lista.filter((c) => c.activo);
-    if (filtro === 'inactivos') lista = lista.filter((c) => !c.activo);
-    if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
-    if (filtro === 'por_vencer') lista = lista.filter((c) => c.activo && c.estado === 'Por vencer');
-    if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
-    if (filtro === 'instalacion_pendiente') lista = lista.filter((c) => c.instalacion_pendiente);
+
+    if (filtro === 'retirados') {
+      lista = lista.filter((c) => c.estado_retiro === 'retirado');
+    } else {
+      lista = lista.filter((c) => c.estado_retiro !== 'retirado');
+      if (filtro === 'activos') lista = lista.filter((c) => c.activo);
+      if (filtro === 'inactivos') lista = lista.filter((c) => !c.activo);
+      if (filtro === 'vencidos') lista = lista.filter((c) => c.activo && c.estado === 'Vencido');
+      if (filtro === 'por_vencer') lista = lista.filter((c) => c.activo && c.estado === 'Por vencer');
+      if (filtro === 'al_dia') lista = lista.filter((c) => c.activo && c.estado === 'Al día');
+      if (filtro === 'instalacion_pendiente') lista = lista.filter((c) => c.instalacion_pendiente);
+    }
+
     if (diaPagoFiltro !== 'todos') {
       lista = lista.filter((c) => Number(c.dia_pago) === Number(diaPagoFiltro));
     }
@@ -311,6 +341,7 @@ export default function ClientesPage() {
           <option value="por_vencer">Por vencer</option>
           <option value="vencidos">Vencidos</option>
           <option value="instalacion_pendiente">Instalación pendiente</option>
+          <option value="retirados">📦 Retirados</option>
         </select>
         <select
           className="input md:max-w-[180px]"
@@ -384,20 +415,21 @@ export default function ClientesPage() {
               <th className="p-3">Estado</th>
               <th className="p-3" title="Instalación física + contrato firmado + primer pago">Instalación</th>
               <th className="p-3" title="¿Ya se le envió mensaje de WhatsApp?">Mensaje</th>
+              <th className="p-3" title="Equipos devueltos (solo clientes retirados)">Retiro</th>
               <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={10} className="p-4 text-brand-400">
+                <td colSpan={11} className="p-4 text-brand-400">
                   Cargando…
                 </td>
               </tr>
             )}
             {!loading && filtrados.length === 0 && (
               <tr>
-                <td colSpan={10} className="p-4 text-brand-400">
+                <td colSpan={11} className="p-4 text-brand-400">
                   No se encontraron clientes.
                 </td>
               </tr>
@@ -425,6 +457,9 @@ export default function ClientesPage() {
                   </td>
                   <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
                     {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
+                  </td>
+                  <td className="p-3">
+                    <BadgeRetiro cliente={c} />
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
                     <button

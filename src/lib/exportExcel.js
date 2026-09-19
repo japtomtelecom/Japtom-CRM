@@ -42,6 +42,9 @@ export function construirLibro(ciudad, { clientesTodos, pagosTodos, planes, regi
     'Último Mensaje Enviado': c.ultimo_mensaje_enviado
       ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO')
       : '',
+    'Estado Retiro': c.estado_retiro === 'retirado' ? 'Retirado' : 'Activo',
+    'Fecha de Retiro': c.fecha_retiro ? new Date(c.fecha_retiro).toLocaleDateString('es-BO') : '',
+    'Equipos Devueltos': c.estado_retiro === 'retirado' ? `${c.equipos_devueltos_count ?? 0}/4` : '',
   }));
   XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(hojaClientes), 'CLIENTES');
 

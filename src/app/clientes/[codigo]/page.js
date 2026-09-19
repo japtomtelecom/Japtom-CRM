@@ -227,6 +227,127 @@ function PanelChecklistInstalacion({ cliente, isAdmin, onRecargar }) {
   );
 }
 
+// Checklist de retiro: 4 equipos a devolver (ONU, roseta óptica, pigtail,
+// adaptador de energía). Usa upsert porque el registro en equipos_retiro
+// puede no existir todavía la primera vez que se marca algo. El botón de
+// "Marcar como retirado" / "Reactivar cliente" cambia estado_retiro en
+// clientes (no borra nada — los pagos quedan intactos).
+function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar }) {
+  const [guardandoCampo, setGuardandoCampo] = useState(null);
+  const [cambiandoEstado, setCambiandoEstado] = useState(false);
+  const [error, setError] = useState('');
+
+  const retirado = cliente.estado_retiro === 'retirado';
+  const er = equiposRetiro || {};
+
+  async function toggleEquipo(campo, valorActual) {
+    if (!isAdmin) return;
+    setGuardandoCampo(campo);
+    setError('');
+    const { error: err } = await supabase
+      .from('equipos_retiro')
+      .upsert({ cliente_id: cliente.id, [campo]: !valorActual }, { onConflict: 'cliente_id' });
+    setGuardandoCampo(null);
+    if (err) {
+      setError('Error al actualizar: ' + err.message);
+      return;
+    }
+    onRecargar?.(true);
+  }
+
+  async function marcarRetirado() {
+    if (!confirm(`¿Confirmas marcar a ${cliente.nombre} como RETIRADO? Su historial de pagos no se pierde.`)) return;
+    setCambiandoEstado(true);
+    setError('');
+    const { error: err } = await supabase
+      .from('clientes')
+      .update({ estado_retiro: 'retirado', fecha_retiro: new Date().toISOString().slice(0, 10) })
+      .eq('id', cliente.id);
+    setCambiandoEstado(false);
+    if (err) {
+      setError('Error al actualizar: ' + err.message);
+      return;
+    }
+    onRecargar?.(true);
+  }
+
+  async function reactivarCliente() {
+    if (!confirm(`¿Confirmas reactivar a ${cliente.nombre}?`)) return;
+    setCambiandoEstado(true);
+    setError('');
+    const { error: err } = await supabase
+      .from('clientes')
+      .update({ estado_retiro: 'activo', fecha_retiro: null, motivo_retiro: null })
+      .eq('id', cliente.id);
+    setCambiandoEstado(false);
+    if (err) {
+      setError('Error al actualizar: ' + err.message);
+      return;
+    }
+    onRecargar?.(true);
+  }
+
+  const equipos = [
+    { campo: 'onu_devuelta', label: 'ONU', valor: !!er.onu_devuelta },
+    { campo: 'roseta_devuelta', label: 'Roseta óptica', valor: !!er.roseta_devuelta },
+    { campo: 'pigtail_devuelto', label: 'Pigtail', valor: !!er.pigtail_devuelto },
+    { campo: 'adaptador_devuelto', label: 'Adaptador de energía', valor: !!er.adaptador_devuelto },
+  ];
+
+  return (
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="font-semibold text-brand-700">
+          {retirado ? '📦 Cliente retirado' : 'Cliente activo'}
+        </h2>
+        {isAdmin && (
+          <button
+            onClick={retirado ? reactivarCliente : marcarRetirado}
+            disabled={cambiandoEstado}
+            className="btn-secondary text-xs"
+            style={retirado ? { color: '#085041' } : { color: '#791F1F' }}
+          >
+            {cambiandoEstado
+              ? 'Guardando…'
+              : retirado
+              ? '🔓 Reactivar cliente'
+              : '📦 Marcar como retirado'}
+          </button>
+        )}
+      </div>
+
+      {retirado && (
+        <>
+          {cliente.fecha_retiro && (
+            <p className="text-xs text-brand-400 mb-3">
+              Retirado el {new Date(cliente.fecha_retiro).toLocaleDateString('es-BO')}
+            </p>
+          )}
+          <p className="text-sm text-brand-500 mb-2">
+            Equipos devueltos: {cliente.equipos_devueltos_count ?? 0}/4
+          </p>
+          <ul className="space-y-2 text-sm">
+            {equipos.map((eq) => (
+              <li key={eq.campo} className="flex items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={eq.valor}
+                  disabled={!isAdmin || guardandoCampo !== null}
+                  onChange={() => toggleEquipo(eq.campo, eq.valor)}
+                />
+                <span>{eq.label}</span>
+                {guardandoCampo === eq.campo && <span className="text-xs text-brand-400">Guardando…</span>}
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+
+      {error && <p className="text-sm mt-2" style={{ color: '#791F1F' }}>{error}</p>}
+    </div>
+  );
+}
+
 function PanelApuntes({ clienteId, userEmail }) {
   const [notas, setNotas] = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -1371,6 +1492,7 @@ export default function FichaClientePage() {
   const [mostrarBorrar, setMostrarBorrar] = useState(false);
   const [opticoOlt, setOpticoOlt] = useState(null);
   const [planes, setPlanes] = useState([]);
+  const [equiposRetiro, setEquiposRetiro] = useState(null);
 
   useEffect(() => {
     supabase
@@ -1411,6 +1533,13 @@ export default function FichaClientePage() {
         .eq('cliente_id', c.id)
         .order('fecha_pago', { ascending: false });
       setPagos(pagosData || []);
+
+      const { data: erData } = await supabase
+        .from('equipos_retiro')
+        .select('*')
+        .eq('cliente_id', c.id)
+        .maybeSingle();
+      setEquiposRetiro(erData || null);
     }
 
     const { data: cfgRows } = await supabase.from('config').select('*');
@@ -1752,6 +1881,15 @@ export default function FichaClientePage() {
         </div>
 
         {!editando && <PanelChecklistInstalacion cliente={cliente} isAdmin={isAdmin} onRecargar={cargar} />}
+
+        {!editando && (
+          <PanelChecklistRetiro
+            cliente={cliente}
+            equiposRetiro={equiposRetiro}
+            isAdmin={isAdmin}
+            onRecargar={cargar}
+          />
+        )}
 
         {isAdmin && !editando && <PanelEstadoConexion cliente={cliente} />}
 
