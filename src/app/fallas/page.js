@@ -175,6 +175,10 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
   );
 }
 
+// El selector de fecha/hora de cierre se muestra siempre (tickets
+// individuales y fallas masivas) — antes solo aparecía para masivas y los
+// individuales se cerraban siempre con la hora exacta del clic, sin poder
+// elegirla ni corregirla si el cierre se carga más tarde.
 function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
   const [resolucion, setResolucion] = useState('');
   const inicial = partesDesdeIso();
@@ -182,13 +186,12 @@ function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
   const [hora, setHora] = useState(inicial.hora);
   const [minuto, setMinuto] = useState(inicial.minuto);
   const [guardando, setGuardando] = useState(false);
-  const esMasiva = ticket.tipo === 'masiva';
 
   async function confirmar() {
     setGuardando(true);
     await onConfirmar({
       resolucion,
-      fechaCierre: esMasiva ? partesAIso(fecha, hora, minuto) : new Date().toISOString(),
+      fechaCierre: partesAIso(fecha, hora, minuto),
     });
     setGuardando(false);
   }
@@ -202,17 +205,15 @@ function ModalCerrarFalla({ ticket, onConfirmar, onClose }) {
         <h3 style={{ marginTop: 0 }}>Cerrar falla</h3>
         <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{ticket.descripcion}</p>
 
-        {esMasiva && (
-          <SelectorFechaHora
-            label="Fecha y hora de cierre"
-            fecha={fecha}
-            hora={hora}
-            minuto={minuto}
-            onCambiarFecha={setFecha}
-            onCambiarHora={setHora}
-            onCambiarMinuto={setMinuto}
-          />
-        )}
+        <SelectorFechaHora
+          label="Fecha y hora de cierre"
+          fecha={fecha}
+          hora={hora}
+          minuto={minuto}
+          onCambiarFecha={setFecha}
+          onCambiarHora={setHora}
+          onCambiarMinuto={setMinuto}
+        />
 
         <label className="label" style={{ marginTop: 12 }}>Resolución (opcional)</label>
         <textarea
