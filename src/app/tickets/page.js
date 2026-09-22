@@ -13,6 +13,7 @@ export default function TicketsPage() {
   const [motivo, setMotivo] = useState('');
   const [empresaNombre, setEmpresaNombre] = useState('JapTom Telecom');
   const [generando, setGenerando] = useState(false);
+  const [error, setError] = useState('');
 
   async function buscar(q, ciudad = ciudadFiltro) {
     setBusqueda(q);
@@ -47,11 +48,27 @@ export default function TicketsPage() {
     else setResultados([]);
   }
 
+  // Genera el PDF del ticket de falla y, además, lo deja guardado en
+  // `tickets_falla` (mismo comportamiento que "Historial de fallas" en la
+  // ficha del cliente) — así el ticket generado desde acá también queda
+  // en el historial y no solo como PDF suelto.
   async function generar() {
     if (!seleccionado) return;
     if (!confirm(`¿Confirmas generar el ticket de falla para ${seleccionado.nombre}?`)) return;
     setGenerando(true);
+    setError('');
     try {
+      const { error: err } = await supabase.from('tickets_falla').insert({
+        tipo: 'individual',
+        cliente_id: seleccionado.id,
+        ciudad: seleccionado.ciudad || 'El Alto',
+        descripcion: motivo.trim() || 'Ticket de falla generado desde Tickets',
+      });
+      if (err) {
+        setError('Error al guardar el ticket en el historial: ' + err.message);
+        return;
+      }
+
       await generarTicketFalla(seleccionado, motivo, empresaNombre);
       setMotivo('');
     } finally {
@@ -133,6 +150,8 @@ export default function TicketsPage() {
             onChange={(e) => setMotivo(e.target.value)}
           />
         </div>
+
+        {error && <p className="text-sm" style={{ color: '#791F1F' }}>{error}</p>}
 
         <button onClick={generar} disabled={!seleccionado || generando} className="btn-primary w-full">
           {generando ? 'Generando…' : '📄 Descargar PDF'}
