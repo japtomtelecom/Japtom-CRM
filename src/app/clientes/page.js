@@ -45,22 +45,6 @@ function BadgeInstalacion({ cliente }) {
   );
 }
 
-// Indicador de retiro: solo se muestra algo cuando el cliente está
-// retirado (estado_retiro viene de v_clientes_estado). Mientras está
-// activo no ocupa espacio visual en la columna.
-function BadgeRetiro({ cliente }) {
-  if (cliente.estado_retiro !== 'retirado') return <span className="text-brand-200">—</span>;
-  const completo = (cliente.equipos_devueltos_count ?? 0) >= 4;
-  return (
-    <span
-      className={completo ? 'badge-al-dia' : 'badge-vencido'}
-      title={cliente.fecha_retiro ? `Retirado el ${new Date(cliente.fecha_retiro).toLocaleDateString('es-BO')}` : 'Retirado'}
-    >
-      📦 {cliente.equipos_devueltos_count ?? 0}/4
-    </span>
-  );
-}
-
 function ModalMeses({ cliente, onClose }) {
   const [meses, setMeses] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -415,21 +399,20 @@ export default function ClientesPage() {
               <th className="p-3">Estado</th>
               <th className="p-3" title="Instalación física + contrato firmado + primer pago">Instalación</th>
               <th className="p-3" title="¿Ya se le envió mensaje de WhatsApp?">Mensaje</th>
-              <th className="p-3" title="Equipos devueltos (solo clientes retirados)">Retiro</th>
               <th className="p-3"></th>
             </tr>
           </thead>
           <tbody>
             {loading && (
               <tr>
-                <td colSpan={11} className="p-4 text-brand-400">
+                <td colSpan={10} className="p-4 text-brand-400">
                   Cargando…
                 </td>
               </tr>
             )}
             {!loading && filtrados.length === 0 && (
               <tr>
-                <td colSpan={11} className="p-4 text-brand-400">
+                <td colSpan={10} className="p-4 text-brand-400">
                   No se encontraron clientes.
                 </td>
               </tr>
@@ -458,70 +441,59 @@ export default function ClientesPage() {
                   <td className="p-3 text-center" title={c.ultimo_mensaje_enviado ? new Date(c.ultimo_mensaje_enviado).toLocaleString('es-BO') : 'Aún no se le envió mensaje'}>
                     {c.ultimo_mensaje_enviado ? <span className="text-brand-500">✅</span> : <span className="text-brand-200">—</span>}
                   </td>
-                  <td className="p-3">
-                    <BadgeRetiro cliente={c} />
-                  </td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <details className="relative inline-block text-left">
-                      <summary
-                        className="list-none cursor-pointer select-none px-2 py-1 rounded hover:bg-brand-50"
-                        title="Acciones"
+                    <button
+                      onClick={() => setClienteMeses(c)}
+                      title="Ver registro mensual"
+                      className="mr-3"
+                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
+                    >
+                      📅
+                    </button>
+                    {wa && (
+                      <a href={wa}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => marcarMensajeEnviado(c.id)}
+                        title="Enviar WhatsApp"
+                        className="mr-3"
                       >
-                        ⋮
-                      </summary>
-                      <div className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-brand-100 bg-white shadow-lg p-1 text-sm">
-                        <button
-                          onClick={() => setClienteMeses(c)}
-                          className="w-full text-left px-3 py-2 rounded hover:bg-brand-50"
-                        >
-                          📅 Ver registro mensual
-                        </button>
-                        {wa && (
-                          <a
-                            href={wa}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => marcarMensajeEnviado(c.id)}
-                            className="block px-3 py-2 rounded hover:bg-brand-50"
-                          >
-                            📲 Enviar WhatsApp
-                          </a>
-                        )}
-                        {waRecordatorio && (
-                          <a
-                            href={waRecordatorio}
-                            target="_blank"
-                            rel="noreferrer"
-                            onClick={() => marcarMensajeEnviado(c.id)}
-                            className="block px-3 py-2 rounded hover:bg-brand-50"
-                          >
-                            🔔 Recordatorio de pago
-                          </a>
-                        )}
-                        {waCorte && (
-                          <a
-                            href={waCorte}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="block px-3 py-2 rounded hover:bg-brand-50"
-                          >
-                            ✂️ Aviso de corte
-                          </a>
-                        )}
-                        <Link
-                          href={`/pagos?cliente_id=${c.id}`}
-                          className="block px-3 py-2 rounded hover:bg-brand-50"
-                        >
-                          💵 Registrar pago
-                        </Link>
-                        <Link
-                          href={`/clientes/${c.codigo}`}
-                          className="block px-3 py-2 rounded hover:bg-brand-50"
-                        >
-                          Ver ficha →
-                        </Link>
-                      </div>
-                    </details>
+                        📲
+                      </a>
+                    )}
+                    {waRecordatorio && (
+                      <a
+                        href={waRecordatorio}
+                        target="_blank"
+                        rel="noreferrer"
+                        onClick={() => marcarMensajeEnviado(c.id)}
+                        title="Enviar recordatorio de pago (mensaje fijo, sin importar el estado)"
+                        className="mr-3"
+                      >
+                        🔔
+                      </a>
+                    )}
+                    {waCorte && (
+                      <a
+                        href={waCorte}
+                        target="_blank"
+                        rel="noreferrer"
+                        title="Enviar aviso de corte por falta de pago"
+                        className="mr-3"
+                      >
+                        ✂️
+                      </a>
+                    )}
+                    <Link
+                      href={`/pagos?cliente_id=${c.id}`}
+                      title="Registrar pago para este cliente"
+                      className="text-brand-600 hover:underline mr-3"
+                    >
+                      💵 Registrar pago
+                    </Link>
+                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
+                      Ver ficha →
+                    </Link>
                   </td>
                 </tr>
               );
