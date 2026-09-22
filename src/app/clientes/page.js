@@ -462,59 +462,66 @@ export default function ClientesPage() {
                     <BadgeRetiro cliente={c} />
                   </td>
                   <td className="p-3 text-right whitespace-nowrap">
-                    <button
-                      onClick={() => setClienteMeses(c)}
-                      title="Ver registro mensual"
-                      className="mr-3"
-                      style={{ background: 'none', border: 'none', cursor: 'pointer' }}
-                    >
-                      📅
-                    </button>
-                    {wa && (
-                      
-                       <a href={wa}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => marcarMensajeEnviado(c.id)}
-                        title="Enviar WhatsApp"
-                        className="mr-3"
+                    <details className="relative inline-block text-left">
+                      <summary
+                        className="list-none cursor-pointer select-none px-2 py-1 rounded hover:bg-brand-50"
+                        title="Acciones"
                       >
-                        📲
-                      </a>
-                    )}
-                    {waRecordatorio && (
-                      <a
-                        href={waRecordatorio}
-                        target="_blank"
-                        rel="noreferrer"
-                        onClick={() => marcarMensajeEnviado(c.id)}
-                        title="Enviar recordatorio de pago (mensaje fijo, sin importar el estado)"
-                        className="mr-3"
-                      >
-                        🔔
-                      </a>
-                    )}
-                    {waCorte && (
-                      <a
-                        href={waCorte}
-                        target="_blank"
-                        rel="noreferrer"
-                        title="Enviar aviso de corte por falta de pago"
-                        className="mr-3"
-                      >
-                        ✂️
-                      </a>
-                    )}
-                    <Link
-                      href={`/pagos?cliente_id=${c.id}`}
-                      title="Registrar pago para este cliente"
-                      className="text-brand-600 hover:underline mr-3"
-                    >
-                      💵 Registrar pago
-                    </Link>
-                    <Link href={`/clientes/${c.codigo}`} className="text-brand-600 hover:underline">
-                      Ver ficha →
-                    </Link>
+                        ⋮
+                      </summary>
+                      <div className="absolute right-0 z-10 mt-1 w-56 rounded-lg border border-brand-100 bg-white shadow-lg p-1 text-sm">
+                        <button
+                          onClick={() => setClienteMeses(c)}
+                          className="w-full text-left px-3 py-2 rounded hover:bg-brand-50"
+                        >
+                          📅 Ver registro mensual
+                        </button>
+                        {wa && (
+                          <a
+                            href={wa}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => marcarMensajeEnviado(c.id)}
+                            className="block px-3 py-2 rounded hover:bg-brand-50"
+                          >
+                            📲 Enviar WhatsApp
+                          </a>
+                        )}
+                        {waRecordatorio && (
+                          <a
+                            href={waRecordatorio}
+                            target="_blank"
+                            rel="noreferrer"
+                            onClick={() => marcarMensajeEnviado(c.id)}
+                            className="block px-3 py-2 rounded hover:bg-brand-50"
+                          >
+                            🔔 Recordatorio de pago
+                          </a>
+                        )}
+                        {waCorte && (
+                          <a
+                            href={waCorte}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="block px-3 py-2 rounded hover:bg-brand-50"
+                          >
+                            ✂️ Aviso de corte
+                          </a>
+                        )}
+                        <Link
+                          href={`/pagos?cliente_id=${c.id}`}
+                          className="block px-3 py-2 rounded hover:bg-brand-50"
+                        >
+                          💵 Registrar pago
+                        </Link>
+                        <Link
+                          href={`/clientes/${c.codigo}`}
+                          className="block px-3 py-2 rounded hover:bg-brand-50"
+                        >
+                          Ver ficha →
+                        </Link>
+                      </div>
+                    </details>
                   </td>
                 </tr>
               );
