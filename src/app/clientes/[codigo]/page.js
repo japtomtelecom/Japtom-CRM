@@ -12,6 +12,7 @@ import { useAuth } from '@/lib/useAuth';
 import { formatBs, linkWhatsApp, construirMensaje } from '@/lib/utils';
 import { generarContrato } from '@/lib/generarContrato';
 import { generarBoletaInstalacion } from '@/lib/generarBoleta';
+import { generarOrdenRetiro } from '@/lib/generarTicket';
 
 function ModalBoleta({ cliente, empresaNombre, onClose }) {
   const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
@@ -100,6 +101,69 @@ function ModalContrato({ cliente, empresaNombre, onClose }) {
             {generando ? 'Generando…' : 'Generar PDF'}
           </button>
           <button onClick={onClose} className="btn-secondary">
+            Cancelar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Modal que se abre al presionar "Marcar como retirado": pide la fecha y
+// el motivo del retiro (antes se guardaba con un simple confirm() y el
+// motivo nunca quedaba registrado), y al confirmar genera además la
+// "Orden de retiro" en PDF con el checklist de equipos devueltos hasta
+// ese momento.
+function ModalMarcarRetirado({ cliente, equiposRetiro, empresaNombre, onConfirmar, onClose }) {
+  const [fecha, setFecha] = useState(new Date().toISOString().slice(0, 10));
+  const [motivo, setMotivo] = useState('');
+  const [guardando, setGuardando] = useState(false);
+
+  const er = equiposRetiro || {};
+  const cantidadDevueltos = [er.onu_devuelta, er.roseta_devuelta, er.pigtail_devuelto, er.adaptador_devuelto].filter(
+    Boolean
+  ).length;
+
+  async function confirmar() {
+    setGuardando(true);
+    await onConfirmar({ fecha, motivo: motivo.trim() });
+    setGuardando(false);
+  }
+
+  return (
+    <div
+      style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.4)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 50 }}
+      onClick={guardando ? undefined : onClose}
+    >
+      <div style={{ background: '#fff', borderRadius: 8, padding: 24, width: 420, maxHeight: '85vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
+        <h3 style={{ marginTop: 0 }}>📦 Marcar como retirado</h3>
+        <p style={{ fontSize: 13, color: '#666', marginTop: -8 }}>{cliente.nombre} · {cliente.codigo}</p>
+        <p style={{ fontSize: 13, color: '#085041', marginTop: 8 }}>
+          Su historial de pagos no se pierde y seguirá disponible en la ficha.
+        </p>
+
+        <label className="label" style={{ marginTop: 12 }}>Fecha de retiro</label>
+        <input type="date" className="input" value={fecha} onChange={(e) => setFecha(e.target.value)} />
+
+        <label className="label" style={{ marginTop: 12 }}>Motivo del retiro</label>
+        <textarea
+          className="input"
+          rows={3}
+          placeholder="Ej: Cliente canceló el servicio, mudanza, falta de pago prolongada…"
+          value={motivo}
+          onChange={(e) => setMotivo(e.target.value)}
+        />
+
+        <p className="text-xs text-brand-400" style={{ marginTop: 10 }}>
+          Equipos devueltos hasta ahora: {cantidadDevueltos}/4 (puedes seguir marcándolos en el checklist debajo aunque el
+          cliente ya quede retirado).
+        </p>
+
+        <div className="flex gap-2 mt-4">
+          <button onClick={confirmar} disabled={guardando} className="btn-primary">
+            {guardando ? 'Guardando…' : '📄 Marcar retirado y generar orden'}
+          </button>
+          <button onClick={onClose} disabled={guardando} className="btn-secondary">
             Cancelar
           </button>
         </div>
@@ -230,12 +294,15 @@ function PanelChecklistInstalacion({ cliente, isAdmin, onRecargar }) {
 // Checklist de retiro: 4 equipos a devolver (ONU, roseta óptica, pigtail,
 // adaptador de energía). Usa upsert porque el registro en equipos_retiro
 // puede no existir todavía la primera vez que se marca algo. El botón de
-// "Marcar como retirado" / "Reactivar cliente" cambia estado_retiro en
-// clientes (no borra nada — los pagos quedan intactos).
-function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar }) {
+// "Marcar como retirado" abre un modal que pide fecha y motivo (que
+// quedan guardados en `clientes`) y genera la "Orden de retiro" en PDF;
+// "Reactivar cliente" revierte el estado sin pedir nada más (no borra
+// nada — los pagos quedan intactos).
+function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar, empresaNombre }) {
   const [guardandoCampo, setGuardandoCampo] = useState(null);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [error, setError] = useState('');
+  const [mostrarModalRetiro, setMostrarModalRetiro] = useState(false);
 
   const retirado = cliente.estado_retiro === 'retirado';
   const er = equiposRetiro || {};
@@ -255,19 +322,21 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar }) {
     onRecargar?.(true);
   }
 
-  async function marcarRetirado() {
-    if (!confirm(`¿Confirmas marcar a ${cliente.nombre} como RETIRADO? Su historial de pagos no se pierde.`)) return;
-    setCambiandoEstado(true);
+  async function confirmarRetiro({ fecha, motivo }) {
     setError('');
     const { error: err } = await supabase
       .from('clientes')
-      .update({ estado_retiro: 'retirado', fecha_retiro: new Date().toISOString().slice(0, 10) })
+      .update({ estado_retiro: 'retirado', fecha_retiro: fecha, motivo_retiro: motivo || null })
       .eq('id', cliente.id);
-    setCambiandoEstado(false);
     if (err) {
       setError('Error al actualizar: ' + err.message);
+      setMostrarModalRetiro(false);
       return;
     }
+    // La orden se genera con los datos vigentes al momento del retiro
+    // (equipos devueltos hasta ahora, aunque falten algunos por marcar).
+    await generarOrdenRetiro(cliente, equiposRetiro, motivo, fecha, empresaNombre);
+    setMostrarModalRetiro(false);
     onRecargar?.(true);
   }
 
@@ -302,7 +371,7 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar }) {
         </h2>
         {isAdmin && (
           <button
-            onClick={retirado ? reactivarCliente : marcarRetirado}
+            onClick={retirado ? reactivarCliente : () => setMostrarModalRetiro(true)}
             disabled={cambiandoEstado}
             className="btn-secondary text-xs"
             style={retirado ? { color: '#085041' } : { color: '#791F1F' }}
@@ -319,9 +388,12 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar }) {
       {retirado && (
         <>
           {cliente.fecha_retiro && (
-            <p className="text-xs text-brand-400 mb-3">
+            <p className="text-xs text-brand-400 mb-1">
               Retirado el {new Date(cliente.fecha_retiro).toLocaleDateString('es-BO')}
             </p>
+          )}
+          {cliente.motivo_retiro && (
+            <p className="text-xs text-brand-400 mb-3">Motivo: {cliente.motivo_retiro}</p>
           )}
           <p className="text-sm text-brand-500 mb-2">
             Equipos devueltos: {cliente.equipos_devueltos_count ?? 0}/4
@@ -344,6 +416,16 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar }) {
       )}
 
       {error && <p className="text-sm mt-2" style={{ color: '#791F1F' }}>{error}</p>}
+
+      {mostrarModalRetiro && (
+        <ModalMarcarRetirado
+          cliente={cliente}
+          equiposRetiro={equiposRetiro}
+          empresaNombre={empresaNombre}
+          onConfirmar={confirmarRetiro}
+          onClose={() => setMostrarModalRetiro(false)}
+        />
+      )}
     </div>
   );
 }
@@ -1888,6 +1970,7 @@ export default function FichaClientePage() {
             equiposRetiro={equiposRetiro}
             isAdmin={isAdmin}
             onRecargar={cargar}
+            empresaNombre={config.empresa_nombre}
           />
         )}
 
