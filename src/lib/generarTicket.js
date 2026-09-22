@@ -220,3 +220,126 @@ export async function generarBoletaFallaMasiva(ticket, empresaNombre = 'JapTom T
   const nombreArchivo = `Boleta_Falla_Masiva_${(ticket.ciudad || '').replace(/\s+/g, '')}_${numeroTicket}.pdf`;
   doc.save(nombreArchivo);
 }
+
+// Genera un PDF de "Orden de retiro de servicio" cuando un cliente se da
+// de baja — mismo estilo visual que los demás documentos de esta misma
+// pantalla. Incluye datos del cliente, motivo del retiro y el checklist
+// de equipos devueltos (ONU, roseta óptica, pigtail, adaptador).
+export async function generarOrdenRetiro(cliente, equiposRetiro, motivo, fecha, empresaNombre = 'JapTom Telecom') {
+  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+  const margenX = 20;
+  let y = 20;
+  const fechaRetiro = new Date(`${fecha}T00:00:00`);
+  const fechaTexto = fechaRetiro.toLocaleDateString('es-BO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  const ahora = new Date();
+  const horaTexto = ahora.toLocaleTimeString('es-BO', { hour: '2-digit', minute: '2-digit' });
+  const numeroOrden = `${fechaRetiro.getFullYear()}${String(fechaRetiro.getMonth() + 1).padStart(2, '0')}${String(
+    fechaRetiro.getDate()
+  ).padStart(2, '0')}-${cliente.codigo}`;
+
+  let textoX = margenX;
+  try {
+    const logoBase64 = await cargarImagenBase64('/logo.png');
+    doc.addImage(logoBase64, 'PNG', margenX, y - 6, 22, 22);
+    textoX = margenX + 27;
+  } catch (e) {
+    // si el logo no carga (ej. sin conexión), seguimos sin él
+  }
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(16);
+  doc.text(empresaNombre, textoX, y);
+  y += 7;
+  doc.setFontSize(12);
+  doc.setTextColor(80);
+  doc.text('ORDEN DE RETIRO DE SERVICIO', textoX, y);
+  doc.setTextColor(0);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  doc.text(`N° Orden: ${numeroOrden}`, 210 - margenX, 20, { align: 'right' });
+  doc.text(`Fecha de retiro: ${fechaTexto}`, 210 - margenX, 26, { align: 'right' });
+  doc.text(`Emitido: ${horaTexto}`, 210 - margenX, 32, { align: 'right' });
+
+  y += 12;
+  doc.setDrawColor(180);
+  doc.line(margenX, y, 210 - margenX, y);
+  y += 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('Datos del cliente', margenX, y);
+  y += 7;
+  const filas = [
+    ['ID Cliente', cliente.codigo],
+    ['Nombre', cliente.nombre],
+    ['Teléfono', cliente.telefono || '—'],
+    ['Dirección', cliente.direccion || '—'],
+    ['Plan', cliente.plan || '—'],
+    ['Ciudad', cliente.ciudad || 'El Alto'],
+  ];
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  filas.forEach(([label, valor]) => {
+    doc.setFont('helvetica', 'bold');
+    doc.text(`${label}:`, margenX, y);
+    doc.setFont('helvetica', 'normal');
+    doc.text(String(valor), margenX + 35, y);
+    y += 7;
+  });
+
+  y += 3;
+  doc.setDrawColor(180);
+  doc.line(margenX, y, 210 - margenX, y);
+  y += 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('Motivo del retiro', margenX, y);
+  y += 7;
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  const lineasMotivo = doc.splitTextToSize(motivo || '(sin detalle)', 210 - margenX * 2);
+  doc.text(lineasMotivo, margenX, y);
+  y += lineasMotivo.length * 5 + 10;
+
+  doc.setDrawColor(180);
+  doc.line(margenX, y, 210 - margenX, y);
+  y += 10;
+
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('Equipos devueltos', margenX, y);
+  y += 8;
+
+  const er = equiposRetiro || {};
+  const equipos = [
+    ['ONU', !!er.onu_devuelta],
+    ['Roseta óptica', !!er.roseta_devuelta],
+    ['Pigtail', !!er.pigtail_devuelto],
+    ['Adaptador de energía', !!er.adaptador_devuelto],
+  ];
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(10);
+  equipos.forEach(([label, devuelto]) => {
+    doc.rect(margenX, y - 4, 4, 4);
+    if (devuelto) {
+      doc.setFont('helvetica', 'bold');
+      doc.text('X', margenX + 0.6, y - 1);
+      doc.setFont('helvetica', 'normal');
+    }
+    doc.text(label, margenX + 8, y);
+    y += 8;
+  });
+
+  y += 5;
+  doc.setDrawColor(180);
+  doc.line(margenX, y, 90, y);
+  doc.line(120, y, 190, y);
+  y += 5;
+  doc.setFontSize(9);
+  doc.text('Firma técnico', margenX, y);
+  doc.text('Firma cliente', 120, y);
+
+  const nombreArchivo = `Orden_Retiro_${cliente.codigo}_${numeroOrden}.pdf`;
+  doc.save(nombreArchivo);
+}
