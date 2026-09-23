@@ -297,12 +297,16 @@ function PanelChecklistInstalacion({ cliente, isAdmin, onRecargar }) {
 // "Marcar como retirado" abre un modal que pide fecha y motivo (que
 // quedan guardados en `clientes`) y genera la "Orden de retiro" en PDF;
 // "Reactivar cliente" revierte el estado sin pedir nada más (no borra
-// nada — los pagos quedan intactos).
+// nada — los pagos quedan intactos). Cuando el checklist llega a 4/4 se
+// muestra un aviso de que el trabajo (la devolución de equipos) quedó
+// cerrado, con un botón "Aceptar" para descartarlo — mismo patrón que
+// usan los paneles de MikroTik y OLT para sus resultados.
 function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar, empresaNombre }) {
   const [guardandoCampo, setGuardandoCampo] = useState(null);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [error, setError] = useState('');
   const [mostrarModalRetiro, setMostrarModalRetiro] = useState(false);
+  const [mostrarExito, setMostrarExito] = useState(false);
 
   const retirado = cliente.estado_retiro === 'retirado';
   const er = equiposRetiro || {};
@@ -311,14 +315,22 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar, emp
     if (!isAdmin) return;
     setGuardandoCampo(campo);
     setError('');
+    const nuevoValor = !valorActual;
     const { error: err } = await supabase
       .from('equipos_retiro')
-      .upsert({ cliente_id: cliente.id, [campo]: !valorActual }, { onConflict: 'cliente_id' });
+      .upsert({ cliente_id: cliente.id, [campo]: nuevoValor }, { onConflict: 'cliente_id' });
     setGuardandoCampo(null);
     if (err) {
       setError('Error al actualizar: ' + err.message);
       return;
     }
+    // Si con este cambio quedan los 4 equipos devueltos, se muestra el
+    // aviso de que el trabajo quedó cerrado con éxito.
+    const estadoActualizado = { ...er, [campo]: nuevoValor };
+    const completos = ['onu_devuelta', 'roseta_devuelta', 'pigtail_devuelto', 'adaptador_devuelto'].every(
+      (k) => !!estadoActualizado[k]
+    );
+    if (completos) setMostrarExito(true);
     onRecargar?.(true);
   }
 
@@ -353,6 +365,7 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar, emp
       setError('Error al actualizar: ' + err.message);
       return;
     }
+    setMostrarExito(false);
     onRecargar?.(true);
   }
 
@@ -412,6 +425,25 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar, emp
               </li>
             ))}
           </ul>
+
+          {mostrarExito && (
+            <div
+              style={{
+                marginTop: 12,
+                padding: '10px 12px',
+                borderRadius: 6,
+                fontSize: 13,
+                fontWeight: 500,
+                background: '#E1F5EE',
+                color: '#085041',
+              }}
+            >
+              <p style={{ margin: 0 }}>✅ Los 4 equipos quedaron registrados como devueltos. El trabajo se cerró con éxito.</p>
+              <button onClick={() => setMostrarExito(false)} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+                Aceptar
+              </button>
+            </div>
+          )}
         </>
       )}
 
