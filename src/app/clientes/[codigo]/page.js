@@ -302,6 +302,7 @@ function PanelChecklistInstalacion({ cliente, isAdmin, onRecargar }) {
 // cerrado, con un botón "Aceptar" para descartarlo — mismo patrón que
 // usan los paneles de MikroTik y OLT para sus resultados.
 function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar, empresaNombre }) {
+  const router = useRouter();
   const [guardandoCampo, setGuardandoCampo] = useState(null);
   const [cambiandoEstado, setCambiandoEstado] = useState(false);
   const [error, setError] = useState('');
@@ -439,7 +440,14 @@ function PanelChecklistRetiro({ cliente, equiposRetiro, isAdmin, onRecargar, emp
               }}
             >
               <p style={{ margin: 0 }}>✅ Los 4 equipos quedaron registrados como devueltos. El trabajo se cerró con éxito.</p>
-              <button onClick={() => setMostrarExito(false)} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+              <button
+                onClick={() => {
+                  setMostrarExito(false);
+                  router.push('/clientes');
+                }}
+                className="btn-primary text-xs"
+                style={{ marginTop: 8 }}
+              >
                 Aceptar
               </button>
             </div>
