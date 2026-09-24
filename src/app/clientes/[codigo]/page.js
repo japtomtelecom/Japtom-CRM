@@ -968,7 +968,7 @@ function calcularAvisoServicio(estado) {
     return {
       fondo: '#FCEBEB', borde: '#D64545', texto: '#791F1F',
       titulo: '🔴 SERVICIO BLOQUEADO',
-      detalle: 'Se cortó el acceso a Internet de este cliente. Para devolvérselo usá \"Reactivar servicio\".',
+      detalle: 'Se cortó el acceso a Internet de este cliente. Revisar el pago del servicio con la parte administrativa.',
     };
   }
 
