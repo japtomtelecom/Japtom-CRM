@@ -7,7 +7,7 @@ const nextConfig = {
   // falla. Con esto le decimos que lo use directamente en el servidor
   // en vez de intentar empaquetarlo.
   experimental: {
-    serverComponentsExternalPackages: ['ssh2'],
+    serverComponentsExternalPackages: ['ssh2', 'exceljs'],
   },
 };
 

@@ -1,6 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import * as XLSX from 'xlsx';
-import { construirLibro, CIUDADES } from '@/lib/exportExcel';
+import { construirLibro, cargarLogo, CIUDADES } from '@/lib/exportExcel';
 import { subirOActualizarArchivo } from '@/lib/googleDrive';
 import { enviarCorreoRespaldoOk, enviarCorreoRespaldoError } from '@/lib/enviarCorreoRespaldo';
 
@@ -31,15 +30,22 @@ export async function GET(request) {
   try {
     const supabaseAdmin = clienteAdmin();
 
-    const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }] =
+    // Mismas consultas que el botón manual de Excel (src/lib/exportExcel.js),
+    // para que el respaldo salga igual de completo (incluye "con_factura" de
+    // los pagos y los trabajos adicionales).
+    const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }, { data: trabajosTodos }] =
       await Promise.all([
         supabaseAdmin.from('v_clientes_estado').select('*').order('codigo', { ascending: true }),
         supabaseAdmin
           .from('pagos')
-          .select('fecha_pago, monto, tipo_pago, mes_corresponde, clientes(codigo, nombre, ciudad)')
+          .select('fecha_pago, monto, tipo_pago, mes_corresponde, con_factura, clientes(codigo, nombre, ciudad)')
           .order('fecha_pago', { ascending: false }),
         supabaseAdmin.from('planes').select('*').order('precio', { ascending: true }),
         supabaseAdmin.from('v_registro_pagos_mensual').select('*'),
+        supabaseAdmin
+          .from('trabajos_adicionales')
+          .select('fecha, tipo, descripcion, monto, costo_materiales, ciudad, con_factura, nit, nombre_cliente_externo, clientes(codigo, nombre)')
+          .order('fecha', { ascending: false }),
       ]);
 
     const datos = {
@@ -47,12 +53,17 @@ export async function GET(request) {
       pagosTodos: pagosTodos || [],
       planes: planes || [],
       registroTodo: registroTodo || [],
+      trabajosTodos: trabajosTodos || [],
     };
+
+    // Logo de la empresa (public/logo.png) tomado del mismo sitio que ejecuta
+    // el cron; si no se puede descargar, el respaldo se genera sin logo.
+    const logo = await cargarLogo(new URL(request.url).origin);
 
     const resultados = [];
     for (const ciudad of CIUDADES) {
-      const wb = construirLibro(ciudad, datos);
-      const buffer = XLSX.write(wb, { type: 'buffer', bookType: 'xlsx' });
+      const wb = await construirLibro(ciudad, datos, { logo });
+      const buffer = Buffer.from(await wb.xlsx.writeBuffer());
       const nombreArchivo = nombreArchivoDelMes(ciudad);
       const subida = await subirOActualizarArchivo(nombreArchivo, buffer);
       resultados.push({ ciudad, nombreArchivo, ...subida });
