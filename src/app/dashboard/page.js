@@ -35,7 +35,7 @@ function AlarmaInstalacionesPendientes({ clientes }) {
     >
       <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
         <h2 className="font-semibold" style={{ color: '#7A5B12' }}>
-          🟠 {clientes.length} instalación{clientes.length === 1 ? '' : 'es'} pendiente{clientes.length === 1 ? '' : 's'}
+    🟠 {clientes.length} {clientes.length === 1 ? 'instalación pendiente' : 'instalaciones pendientes'}
         </h2>
         <Link href="/clientes" className="text-sm hover:underline" style={{ color: '#7A5B12' }}>
           Ver en Clientes →
