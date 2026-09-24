@@ -47,6 +47,15 @@ function nombreMesCorto(periodo) {
   return d.toLocaleDateString('es-BO', { month: 'short', year: 'numeric' });
 }
 
+// Mes de un pago/trabajo como "2026-09" (mismo criterio que Estadísticas:
+// se toma directo del texto de la fecha, sin correrse por zona horaria).
+function mesClave(fecha) {
+  return String(fecha).slice(0, 7);
+}
+function mesEtiqueta(clave) {
+  return nombreMesCorto(clave + '-01');
+}
+
 function fechaCorta(valor) {
   return valor ? new Date(valor).toLocaleDateString('es-BO') : '';
 }
@@ -177,7 +186,7 @@ function agregarHoja(wb, { nombre, ciudad, generado, logoId, columnas, filas, co
       celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR.encabezado } };
       celda.border = bordeFino;
       if (i === 0) {
-        celda.value = 'TOTAL (filas visibles)';
+        celda.value = 'TOTAL';
         celda.alignment = { horizontal: 'left', vertical: 'middle' };
       } else if (col.total) {
         const letra = ws.getColumn(i + 1).letter;
@@ -261,7 +270,7 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
       { titulo: 'Activo' },
       { titulo: 'Plan' },
       { titulo: 'Frecuencia' },
-      { titulo: 'Precio en Bs', formato: FORMATO_BS },
+      { titulo: 'Precio en Bs', formato: FORMATO_BS, total: true },
       { titulo: 'Velocidad' },
       { titulo: 'Dirección', ajuste: true },
       { titulo: 'Estado' },
@@ -281,22 +290,38 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
   pagos.forEach((p) => {
     const codigo = p.clientes?.codigo;
     if (!codigo) return;
-    if (!factPorCodigo[codigo]) factPorCodigo[codigo] = { facturados: 0, monto: 0, ultimo: null, sinFactura: 0 };
+    if (!factPorCodigo[codigo]) factPorCodigo[codigo] = { facturados: 0, monto: 0, ultimo: null, sinFactura: 0, porMes: {} };
     const f = factPorCodigo[codigo];
     if (p.con_factura) {
       f.facturados += 1;
       f.monto += Number(p.monto) || 0;
+      const mk = mesClave(p.fecha_pago);
+      f.porMes[mk] = (f.porMes[mk] || 0) + (Number(p.monto) || 0);
       if (!f.ultimo || new Date(p.fecha_pago) > new Date(f.ultimo)) f.ultimo = p.fecha_pago;
     } else {
       f.sinFactura += 1;
     }
   });
 
-  const hojaFactura = clientes
+  const clientesFactura = clientes
     .filter((c) => c.factura || (factPorCodigo[c.codigo]?.facturados || 0) > 0)
-    .sort((a, b) => String(a.codigo).localeCompare(String(b.codigo)))
+    .sort((a, b) => String(a.codigo).localeCompare(String(b.codigo)));
+
+  // Una columna por mes (los últimos 12 con facturación) con el monto facturado
+  const mesesFactura = [
+    ...new Set(clientesFactura.flatMap((c) => Object.keys(factPorCodigo[c.codigo]?.porMes || {}))),
+  ]
+    .sort()
+    .slice(-12);
+  const tituloMesFactura = (mk) => `Facturado ${mesEtiqueta(mk)}`;
+
+  const hojaFactura = clientesFactura
     .map((c) => {
-      const f = factPorCodigo[c.codigo] || { facturados: 0, monto: 0, ultimo: null, sinFactura: 0 };
+      const f = factPorCodigo[c.codigo] || { facturados: 0, monto: 0, ultimo: null, sinFactura: 0, porMes: {} };
+      const filaMeses = {};
+      mesesFactura.forEach((mk) => {
+        filaMeses[tituloMesFactura(mk)] = f.porMes[mk] || null;
+      });
       return {
         ID: c.codigo,
         Cliente: c.nombre,
@@ -310,6 +335,7 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
         'Monto facturado (Bs)': f.monto,
         'Último pago facturado': fechaCorta(f.ultimo),
         'Pagos sin factura': c.factura ? f.sinFactura : '—',
+        ...filaMeses,
       };
     });
   agregarHoja(wb, {
@@ -328,6 +354,7 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
       { titulo: 'Monto facturado (Bs)', formato: FORMATO_BS, total: true },
       { titulo: 'Último pago facturado' },
       { titulo: 'Pagos sin factura' },
+      ...mesesFactura.map((mk) => ({ titulo: tituloMesFactura(mk), formato: FORMATO_BS, total: true })),
     ],
     filas: hojaFactura,
     colorear: (titulo, valor) => (titulo === 'Estado' ? COLOR_POR_TEXTO[valor] : null),
@@ -337,6 +364,7 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
   const hojaPagos = pagos.map((p) => ({
     'ID Cliente': p.clientes?.codigo || '',
     'Fecha de Pago': new Date(p.fecha_pago).toLocaleDateString('es-BO'),
+    'Mes de Pago': mesEtiqueta(mesClave(p.fecha_pago)),
     Cliente: p.clientes?.nombre || '',
     Monto: p.monto,
     'Tipo de Pago': p.tipo_pago || 'Mensual',
@@ -351,6 +379,7 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
     columnas: [
       { titulo: 'ID Cliente' },
       { titulo: 'Fecha de Pago' },
+      { titulo: 'Mes de Pago' },
       { titulo: 'Cliente' },
       { titulo: 'Monto', formato: FORMATO_BS, total: true },
       { titulo: 'Tipo de Pago' },
@@ -358,6 +387,57 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
       { titulo: 'Factura' },
     ],
     filas: hojaPagos,
+  });
+
+  // ── TOTALES POR MES: cuánto se cobró, cuánto con factura y trabajos adicionales ──
+  const porMes = {};
+  const mesFila = (mk) => {
+    if (!porMes[mk]) porMes[mk] = { n: 0, cobrado: 0, facturado: 0, sinFactura: 0, trabajos: 0, trabajosFact: 0 };
+    return porMes[mk];
+  };
+  pagos.forEach((p) => {
+    const m = mesFila(mesClave(p.fecha_pago));
+    const monto = Number(p.monto) || 0;
+    m.n += 1;
+    m.cobrado += monto;
+    if (p.con_factura) m.facturado += monto;
+    else m.sinFactura += monto;
+  });
+  trabajos.forEach((t) => {
+    const m = mesFila(mesClave(t.fecha));
+    const monto = Number(t.monto) || 0;
+    m.trabajos += monto;
+    if (t.con_factura) m.trabajosFact += monto;
+  });
+  const hojaTotalesMes = Object.keys(porMes)
+    .sort()
+    .map((mk) => {
+      const m = porMes[mk];
+      return {
+        Mes: mesEtiqueta(mk),
+        'Pagos (cant.)': m.n,
+        'Pagos cobrados (Bs)': m.cobrado,
+        'Pagos facturados (Bs)': m.facturado,
+        'Pagos sin factura (Bs)': m.sinFactura,
+        'Trabajos adicionales (Bs)': m.trabajos,
+        'Trabajos facturados (Bs)': m.trabajosFact,
+        'Total general (Bs)': m.cobrado + m.trabajos,
+      };
+    });
+  agregarHoja(wb, {
+    ...base,
+    nombre: 'TOTALES POR MES',
+    columnas: [
+      { titulo: 'Mes' },
+      { titulo: 'Pagos (cant.)', total: true },
+      { titulo: 'Pagos cobrados (Bs)', formato: FORMATO_BS, total: true },
+      { titulo: 'Pagos facturados (Bs)', formato: FORMATO_BS, total: true },
+      { titulo: 'Pagos sin factura (Bs)', formato: FORMATO_BS, total: true },
+      { titulo: 'Trabajos adicionales (Bs)', formato: FORMATO_BS, total: true },
+      { titulo: 'Trabajos facturados (Bs)', formato: FORMATO_BS, total: true },
+      { titulo: 'Total general (Bs)', formato: FORMATO_BS, total: true },
+    ],
+    filas: hojaTotalesMes,
   });
 
   // ── PLANES ──
@@ -401,6 +481,7 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
   // ── TRABAJOS ADICIONALES ──
   const hojaTrabajos = trabajos.map((t) => ({
     Fecha: new Date(t.fecha).toLocaleDateString('es-BO'),
+    Mes: mesEtiqueta(mesClave(t.fecha)),
     Cliente: t.clientes?.nombre || t.nombre_cliente_externo || '',
     'ID Cliente': t.clientes?.codigo || '',
     Tipo: t.tipo || '',
@@ -415,6 +496,7 @@ export async function construirLibro(ciudad, { clientesTodos, pagosTodos, planes
     nombre: 'TRABAJOS ADICIONALES',
     columnas: [
       { titulo: 'Fecha' },
+      { titulo: 'Mes' },
       { titulo: 'Cliente' },
       { titulo: 'ID Cliente' },
       { titulo: 'Tipo' },
