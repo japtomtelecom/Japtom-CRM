@@ -949,6 +949,52 @@ function formatearDuracion(desdeIso) {
   return `${dias}d ${horasRestantes}h`;
 }
 
+// Aviso grande y fácil de entender arriba del detalle técnico de "Ver estado
+// de conexión": 🟢 servicio activo (conectado), 🔴 servicio bloqueado (usuario
+// PPPoE deshabilitado en el MikroTik) o 🟡 servicio activo pero sin conexión.
+function calcularAvisoServicio(estado) {
+  const p = estado?.pppoe;
+  if (!p || p.error) return null;
+
+  if (p.usuarioExiste === false) {
+    return {
+      fondo: '#FFF4D6', borde: '#E0A800', texto: '#7A4F01',
+      titulo: '🟡 USUARIO PPPoE NO ENCONTRADO',
+      detalle: 'El usuario PPPoE de esta ficha no existe en el MikroTik. Revisá que esté bien escrito o creá el usuario.',
+    };
+  }
+
+  if (p.bloqueado) {
+    return {
+      fondo: '#FCEBEB', borde: '#D64545', texto: '#791F1F',
+      titulo: '🔴 SERVICIO BLOQUEADO',
+      detalle: 'Se cortó el acceso a Internet de este cliente. Para devolvérselo usá \"Reactivar servicio\".',
+    };
+  }
+
+  if (p.online) {
+    return {
+      fondo: '#E3F5EA', borde: '#2E9E5B', texto: '#0F5132',
+      titulo: '🟢 SERVICIO ACTIVO',
+      detalle: 'El cliente está conectado y navegando con normalidad.',
+    };
+  }
+
+  // Activo (no está bloqueado) pero sin sesión PPPoE: la pista más útil es
+  // el estado de la ONU en la OLT, si se pudo consultar.
+  let pista = 'El servicio está habilitado pero el cliente no tiene conexión en este momento.';
+  if (estado.olt && !estado.olt.error && estado.olt.encontrado !== false) {
+    pista = estado.olt.online
+      ? 'La ONU está en línea pero el PPPoE no se conecta: revisá el router / usuario y contraseña del cliente.'
+      : 'La ONU está desconectada: probablemente sin luz o fibra cortada.';
+  }
+  return {
+    fondo: '#FFF4D6', borde: '#E0A800', texto: '#7A4F01',
+    titulo: '🟡 SERVICIO ACTIVO · SIN CONEXIÓN',
+    detalle: pista,
+  };
+}
+
 // Botón de "Estado de conexión": consulta en vivo si el cliente está
 // conectado por PPPoE (MikroTik, las dos sedes) y, en Tarija, además el
 // estado de su ONU en la OLT (V-Sol) — en El Alto esa OLT todavía no está
@@ -1031,6 +1077,26 @@ function PanelEstadoConexion({ cliente }) {
 
       {estado && (
         <div className="mt-4 space-y-3">
+          {(() => {
+            const aviso = calcularAvisoServicio(estado);
+            if (!aviso) return null;
+            return (
+              <div
+                style={{
+                  padding: '20px 16px',
+                  borderRadius: 12,
+                  textAlign: 'center',
+                  background: aviso.fondo,
+                  border: `2px solid ${aviso.borde}`,
+                  color: aviso.texto,
+                }}
+              >
+                <p style={{ margin: 0, fontSize: 26, fontWeight: 800, letterSpacing: 0.5 }}>{aviso.titulo}</p>
+                <p style={{ margin: '8px 0 0', fontSize: 15 }}>{aviso.detalle}</p>
+              </div>
+            );
+          })()}
+
           <div className="rounded-lg p-4" style={{ background: '#F5F7F6' }}>
             <p className="text-sm text-brand-400 mb-1">PPPoE (MikroTik)</p>
             {estado.pppoe?.error ? (

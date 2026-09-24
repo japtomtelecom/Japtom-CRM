@@ -57,6 +57,16 @@ async function consultarPppoe(supabaseAdmin, cliente, clienteId) {
     conn = new RouterOSAPI({ ...routerConfig, timeout: 8 });
     await conn.connect();
 
+    // "Bloquear servicio" (api/mikrotik/toggle) deshabilita el secret PPPoE
+    // en el MikroTik, así que ese es el dato que dice si el servicio está
+    // bloqueado o activo. RouterOS devuelve el booleano como 'true'/'false'.
+    const secrets = await conn.write('/ppp/secret/print', [
+      `?name=${cliente.pppoe_usuario}`,
+      '=.proplist=name,disabled',
+    ]);
+    const usuarioExiste = secrets.length > 0;
+    const bloqueado = usuarioExiste && ['true', 'yes'].includes(String(secrets[0].disabled).toLowerCase());
+
     const activos = await conn.write('/ppp/active/print', [
       `?name=${cliente.pppoe_usuario}`,
       '=.proplist=name,uptime,address',
@@ -86,7 +96,7 @@ async function consultarPppoe(supabaseAdmin, cliente, clienteId) {
       ip = activos[0].address || null;
     }
 
-    return { online, desde, conectadoDesde, ip };
+    return { online, desde, conectadoDesde, ip, bloqueado, usuarioExiste };
   } catch (e) {
     if (conn) try { conn.close(); } catch {}
     return { error: 'No se pudo conectar con el MikroTik: ' + e.message };
