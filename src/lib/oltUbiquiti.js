@@ -104,3 +104,20 @@ export function buscarOnu(onus, { mac, ip } = {}) {
   }
   return null;
 }
+
+// Reinicia una ONU en la OLT Ubiquiti. El identificador de la ruta es el
+// serial de la ONU (ej. UBNT20730311), el mismo que devuelve la lista de
+// ONUs en el campo "serial". La OLT responde 200 si acepta el reinicio.
+export async function reiniciarOnuUbiquiti(serial) {
+  if (!serial) throw new Error('Falta el serial de la ONU.');
+  const token = await loginOltUbiquiti();
+  const res = await peticionOlt(
+    'POST',
+    `/api/v1.0/gpon/onus/${encodeURIComponent(serial)}/reboot`,
+    { token }
+  );
+  if (res.status !== 200) {
+    throw new Error(`La OLT rechazó el reinicio (status ${res.status}).`);
+  }
+  return true;
+}

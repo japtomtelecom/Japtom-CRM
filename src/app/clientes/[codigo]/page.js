@@ -1372,6 +1372,8 @@ function PanelOltElAlto({ cliente }) {
   const [error, setError] = useState(null);
   const [reiniciando, setReiniciando] = useState(false);
   const [resetMsg, setResetMsg] = useState(null);
+  const [reiniciandoOnt, setReiniciandoOnt] = useState(false);
+  const [rebootMsg, setRebootMsg] = useState(null);
 
   async function verPotencia() {
     if (!confirm(`¿Confirmas consultar la potencia óptica de ${cliente.nombre} en la OLT Ubiquiti?`)) return;
@@ -1385,6 +1387,20 @@ function PanelOltElAlto({ cliente }) {
       setError(e.message);
     } finally {
       setConsultando(false);
+    }
+  }
+
+  async function reiniciarOntUbiquiti() {
+    if (!confirm(`¿Confirmas reiniciar la ONT de ${cliente.nombre}? La conexión se cortará 1-2 minutos.`)) return;
+    setReiniciandoOnt(true);
+    setRebootMsg(null);
+    try {
+      const json = await llamarApiAdmin('/api/olt-elalto/reboot', { clienteId: cliente.id });
+      setRebootMsg({ ok: true, mensaje: json.mensaje });
+    } catch (e) {
+      setRebootMsg({ ok: false, error: e.message });
+    } finally {
+      setReiniciandoOnt(false);
     }
   }
 
@@ -1592,6 +1608,37 @@ function PanelOltElAlto({ cliente }) {
       >
         {consultando ? 'Consultando…' : '📶 Ver potencia óptica'}
       </button>
+
+      <button
+        onClick={reiniciarOntUbiquiti}
+        disabled={reiniciandoOnt || (!cliente.ip_asignada && !cliente.olt_mac)}
+        className="btn-secondary text-sm"
+        style={{ width: '100%', marginTop: 8 }}
+      >
+        {reiniciandoOnt ? 'Reiniciando…' : '🔁 Reiniciar ONT'}
+      </button>
+
+      {rebootMsg && (
+        <div
+          style={{
+            marginTop: 12,
+            padding: '10px 12px',
+            borderRadius: 6,
+            fontSize: 13,
+            fontWeight: 500,
+            background: rebootMsg.ok ? '#E1F5EE' : '#FCEBEB',
+            color: rebootMsg.ok ? '#085041' : '#791F1F',
+          }}
+        >
+          <p style={{ margin: 0 }}>
+            {rebootMsg.ok ? '✅ ' : '⚠️ '}
+            {rebootMsg.ok ? rebootMsg.mensaje : rebootMsg.error}
+          </p>
+          <button onClick={() => setRebootMsg(null)} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+            Aceptar
+          </button>
+        </div>
+      )}
 
       {error && (
         <div
