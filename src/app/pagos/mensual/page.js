@@ -27,12 +27,9 @@ function sumarMeses(ym, n) {
   return `${Math.floor(total / 12)}-${String((total % 12) + 1).padStart(2, '0')}`;
 }
 
-// Texto corto para mostrar bajo el ✓: el día del pago ("12") o, si el pago se
-// hizo en otro mes distinto al período (adelantado o atrasado), día/mes ("28/9").
-function diaPagoCorto(fechaPago, periodo) {
-  const dia = Number(fechaPago.slice(8, 10));
-  const mesPago = fechaPago.slice(0, 7);
-  return mesPago === periodo.slice(0, 7) ? String(dia) : `${dia}/${Number(fechaPago.slice(5, 7))}`;
+// Texto corto para mostrar bajo el ✓: día/mes del pago (ej. "14/8").
+function diaPagoCorto(fechaPago) {
+  return `${Number(fechaPago.slice(8, 10))}/${Number(fechaPago.slice(5, 7))}`;
 }
 
 export default function RegistroMensualPage() {
@@ -233,7 +230,7 @@ export default function RegistroMensualPage() {
                               {style.icon}
                               {fechaPago && (
                                 <span style={{ display: 'block', fontSize: 10, fontWeight: 500 }}>
-                                  {diaPagoCorto(fechaPago, p)}
+                                  {diaPagoCorto(fechaPago)}
                                 </span>
                               )}
                             </button>
