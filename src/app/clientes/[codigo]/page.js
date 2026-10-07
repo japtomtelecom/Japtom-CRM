@@ -1404,6 +1404,20 @@ function PanelOltElAlto({ cliente }) {
     }
   }
 
+  async function reiniciarOntBtpon() {
+    if (!confirm(`¿Confirmas reiniciar la ONT de ${cliente.nombre}? La conexión se cortará 1-2 minutos.`)) return;
+    setReiniciandoOnt(true);
+    setRebootMsg(null);
+    try {
+      const json = await llamarApiAdmin('/api/olt-btpon/reboot', { clienteId: cliente.id });
+      setRebootMsg({ ok: true, mensaje: json.mensaje });
+    } catch (e) {
+      setRebootMsg({ ok: false, error: e.message });
+    } finally {
+      setReiniciandoOnt(false);
+    }
+  }
+
   async function verEstadoBtpon() {
     setConsultando(true);
     setError(null);
@@ -1456,6 +1470,37 @@ function PanelOltElAlto({ cliente }) {
         >
           {consultando ? 'Consultando…' : '🔌 Ver estado de conexión'}
         </button>
+
+        <button
+          onClick={reiniciarOntBtpon}
+          disabled={reiniciandoOnt || !cliente.olt_puerto_pon || !cliente.olt_onu_id}
+          className="btn-secondary text-sm"
+          style={{ width: '100%', marginTop: 8 }}
+        >
+          {reiniciandoOnt ? 'Reiniciando…' : '🔁 Reiniciar ONT'}
+        </button>
+
+        {rebootMsg && (
+          <div
+            style={{
+              marginTop: 12,
+              padding: '10px 12px',
+              borderRadius: 6,
+              fontSize: 13,
+              fontWeight: 500,
+              background: rebootMsg.ok ? '#E1F5EE' : '#FCEBEB',
+              color: rebootMsg.ok ? '#085041' : '#791F1F',
+            }}
+          >
+            <p style={{ margin: 0 }}>
+              {rebootMsg.ok ? '✅ ' : '⚠️ '}
+              {rebootMsg.ok ? rebootMsg.mensaje : rebootMsg.error}
+            </p>
+            <button onClick={() => setRebootMsg(null)} className="btn-primary text-xs" style={{ marginTop: 8 }}>
+              Aceptar
+            </button>
+          </div>
+        )}
 
         <button
           onClick={reiniciarSesionBtpon}

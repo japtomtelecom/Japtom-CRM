@@ -127,3 +127,42 @@ export async function forzarLiberarSesionesBtpon(intentos = 5) {
   }
   return { ok: true, intentos };
 }
+
+// Reinicia una ONU en la OLT BTPON. Es el mismo pedido que hace la web de la
+// OLT al pulsar "Reboot ONU": POST /onumgmt?form=config con flags:1 (reinicio)
+// y fec_mode:1 (valor fijo que la propia web manda desde la lista de ONUs).
+// La OLT confirma con { code: 1 }. Usa conSesion para cerrar siempre la sesión.
+export async function reiniciarOnuBtpon(portId, onuId) {
+  return conSesion(async (token) => {
+    const res = await fetch(`http://${OLT_HOST}/onumgmt?form=config`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Token": token,
+        "Connection": "close",
+      },
+      body: JSON.stringify({
+        method: "set",
+        param: {
+          port_id: Number(portId),
+          onu_id: Number(onuId),
+          flags: 1,
+          fec_mode: 1,
+        },
+      }),
+    });
+    if (!res.ok) {
+      throw new Error(`La OLT BTPON rechazó el reinicio (HTTP ${res.status}).`);
+    }
+    let json = null;
+    try {
+      json = await res.json();
+    } catch {
+      // respuesta sin JSON: se trata como error abajo
+    }
+    if (!json || json.code !== 1) {
+      throw new Error(`La OLT BTPON no confirmó el reinicio (código ${json?.code ?? "desconocido"}).`);
+    }
+    return true;
+  });
+}
