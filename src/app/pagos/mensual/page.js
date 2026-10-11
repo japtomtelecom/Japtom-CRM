@@ -41,6 +41,7 @@ export default function RegistroMensualPage() {
   const [pagosPorMes, setPagosPorMes] = useState({});
   const [loading, setLoading] = useState(true);
   const [busqueda, setBusqueda] = useState('');
+  const [filtroDia, setFiltroDia] = useState('');
 
   useEffect(() => {
     async function cargar() {
@@ -107,14 +108,33 @@ export default function RegistroMensualPage() {
       ? rowsTodas
       : rowsTodas.filter((r) => r.ciudad === sucursalActiva);
 
+  // Día (1-31) en que se pagó el mes p de un cliente, o null si no hay pago
+  function diaPagoDe(cliente_id, p) {
+    const f = pagosPorMes[`${cliente_id}|${p.slice(0, 7)}`];
+    return f ? Number(f.slice(8, 10)) : null;
+  }
+
   // Aplica el buscador (por nombre o por código)
   const q = busqueda.trim().toLowerCase();
-  const rows = q
+  const rowsBusqueda = q
     ? rowsPorSucursal.filter((r) => {
         const codigo = clientesMap[r.cliente_id]?.codigo || '';
         return r.nombre.toLowerCase().includes(q) || codigo.toLowerCase().includes(q);
       })
     : rowsPorSucursal;
+
+  // Filtro por día de pago: clientes con algún mes pagado ese día
+  const clientesDelDia = filtroDia
+    ? new Set(
+        rowsBusqueda
+          .filter((r) => r.status === 'pagado' && diaPagoDe(r.cliente_id, r.periodo) === Number(filtroDia))
+          .map((r) => r.cliente_id)
+      )
+    : null;
+
+  const rows = clientesDelDia
+    ? rowsBusqueda.filter((r) => clientesDelDia.has(r.cliente_id))
+    : rowsBusqueda;
 
   function irARegistrarPago(cliente_id, periodo) {
     const mes = periodo.slice(0, 7);
@@ -159,12 +179,28 @@ export default function RegistroMensualPage() {
               </span>
             ))}
           </div>
-          <input
-            className="input md:max-w-xs"
-            placeholder="Buscar por nombre o ID…"
-            value={busqueda}
-            onChange={(e) => setBusqueda(e.target.value)}
-          />
+          <div className="flex gap-2 items-center md:max-w-md w-full">
+            <select
+              className="input"
+              style={{ width: 130 }}
+              value={filtroDia}
+              onChange={(e) => setFiltroDia(e.target.value)}
+              title="Filtrar por día de pago"
+            >
+              <option value="">Día: todos</option>
+              {Array.from({ length: 31 }, (_, i) => i + 1).map((d) => (
+                <option key={d} value={d}>
+                  Día {d}
+                </option>
+              ))}
+            </select>
+            <input
+              className="input"
+              placeholder="Buscar por nombre o ID…"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+            />
+          </div>
         </div>
 
         {loading ? (
@@ -225,6 +261,10 @@ export default function RegistroMensualPage() {
                                 borderRadius: 6,
                                 fontWeight: 600,
                                 cursor: cell.status !== 'pagado' ? 'pointer' : 'default',
+                                outline:
+                                  fechaPago && filtroDia && Number(fechaPago.slice(8, 10)) === Number(filtroDia)
+                                    ? '2px solid #085041'
+                                    : 'none',
                               }}
                             >
                               {style.icon}
