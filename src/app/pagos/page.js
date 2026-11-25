@@ -42,6 +42,7 @@ function PagosPageInner() {
   const [facturado, setFacturado] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [msg, setMsg] = useState('');
+  const [pagoOk, setPagoOk] = useState(null); // datos del pago recién registrado (cuadro de confirmación)
   const [editandoId, setEditandoId] = useState(null);
   const [edicion, setEdicion] = useState({ fecha_pago: '', monto: '', tipo_pago: 'Mensual', mes_corresponde: '', meses_cubiertos: 1, con_factura: false });
 
@@ -227,7 +228,20 @@ function PagosPageInner() {
       setMsg('Error: ' + error.message);
       return;
     }
-    setMsg(`Pago de ${formatBs(monto)} registrado para ${seleccionado.nombre}.`);
+    setMsg('');
+    const mensajeWa = construirMensaje(
+      { ...seleccionado, activo: true, estado: 'Al día' },
+      config,
+      config.empresa_nombre
+    );
+    setPagoOk({
+      nombre: seleccionado.nombre,
+      codigo: seleccionado.codigo,
+      monto: formatBs(monto),
+      tipo: tipoPago,
+      mes: mesesCubiertos > 0 ? mesCorresponde : null,
+      wa: linkWhatsApp(seleccionado.telefono, mensajeWa),
+    });
     setSeleccionado(null);
     setBusqueda('');
     setClientes([]);
@@ -247,6 +261,45 @@ function PagosPageInner() {
 
   return (
     <AppShell>
+      {pagoOk && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ background: 'rgba(0,0,0,0.45)' }}
+          onClick={() => setPagoOk(null)}
+        >
+          <div className="card p-6 w-full max-w-sm text-center" onClick={(e) => e.stopPropagation()}>
+            <div style={{ fontSize: 48, lineHeight: 1 }}>✅</div>
+            <h2 className="font-display text-xl font-bold text-brand-800 mt-2">¡Pago registrado!</h2>
+            <p className="text-sm text-brand-600 mt-2">
+              <strong>{pagoOk.monto}</strong> de <strong>{pagoOk.nombre}</strong>{' '}
+              <span className="font-mono text-xs text-brand-400">({pagoOk.codigo})</span>
+            </p>
+            <p className="text-xs text-brand-500 mt-1">
+              {pagoOk.tipo}
+              {pagoOk.mes ? ` · mes ${pagoOk.mes}` : ''}
+            </p>
+            <div className="mt-5 space-y-2">
+              {pagoOk.wa ? (
+                <a
+                  href={pagoOk.wa}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={() => setTimeout(() => setPagoOk(null), 300)}
+                  className="btn-whatsapp w-full justify-center"
+                >
+                  💬 Enviar confirmación por WhatsApp
+                </a>
+              ) : (
+                <p className="text-xs text-brand-500">Este cliente no tiene un teléfono válido registrado para enviar WhatsApp.</p>
+              )}
+              <button type="button" className="btn-secondary w-full" onClick={() => setPagoOk(null)}>
+                Cerrar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <h1 className="font-display text-2xl font-bold text-brand-800 mb-6">Pagos</h1>
 
       <div className="grid md:grid-cols-3 gap-6 items-start">
