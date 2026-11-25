@@ -3,6 +3,7 @@ import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
 import { msDesdeUptimeRouteros } from '@/lib/mikrotikTrafico';
 import { configOlt } from '@/lib/oltConfig';
+import { usaOltVsol } from '@/lib/sucursales';
 import {
   ejecutarComandosOlt,
   comandosEnInterfazPon,
@@ -214,13 +215,13 @@ export async function POST(request) {
     );
   }
 
-  const esTarija = cliente.ciudad === 'Tarija';
+  const esVsol = usaOltVsol(cliente.ciudad);
   const esUbiquitiElAlto = cliente.ciudad === 'El Alto' && cliente.olt_marca === 'Ubiquiti';
   const esBtponElAlto = cliente.ciudad === 'El Alto' && cliente.olt_marca === 'BT-PON';
 
   const [pppoe, olt] = await Promise.all([
     consultarPppoe(auth.supabaseAdmin, cliente, clienteId),
-    esTarija
+    esVsol
       ? consultarOlt(cliente)
       : esUbiquitiElAlto
         ? consultarOltUbiquiti(cliente)

@@ -199,6 +199,7 @@ export default function TrabajosAdicionalesPage() {
             <option value="todas">Todas las ciudades</option>
             <option value="El Alto">El Alto</option>
             <option value="Tarija">Tarija</option>
+            <option value="Copacabana">Copacabana</option>
           </select>
         )}
       </div>
@@ -276,6 +277,7 @@ export default function TrabajosAdicionalesPage() {
                 <select className="input" value={ciudad} onChange={(e) => setCiudad(e.target.value)}>
                   <option value="El Alto">El Alto</option>
                   <option value="Tarija">Tarija</option>
+                  <option value="Copacabana">Copacabana</option>
                 </select>
               </div>
             </div>

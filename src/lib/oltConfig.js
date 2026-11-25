@@ -1,8 +1,10 @@
+import { prefijoOlt } from './sucursales';
+
 // Devuelve los datos de conexión SSH de la OLT V-Sol que corresponde a una
 // ciudad, leyendo las variables de entorno del servidor (nunca expuestas
 // al navegador). Mismo patrón que mikrotikConfig.js.
 export function configOlt(ciudad) {
-  const prefijo = ciudad === 'Tarija' ? 'OLT_TARIJA' : 'OLT_ELALTO';
+  const prefijo = prefijoOlt(ciudad);
 
   const host = process.env[`${prefijo}_HOST`];
   const user = process.env[`${prefijo}_USER`];

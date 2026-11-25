@@ -7,7 +7,7 @@ const ETIQUETA_STATUS = {
   vencido: 'Vencido (+5 días)',
 };
 
-export const CIUDADES = ['El Alto', 'Tarija'];
+export const CIUDADES = ['El Alto', 'Tarija', 'Copacabana'];
 
 // ── Estilo del Excel ────────────────────────────────────────────────────
 const COLOR = {
@@ -566,7 +566,7 @@ function descargarArchivo(buffer, nombreArchivo) {
   setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
-// Genera y descarga 2 archivos .xlsx separados: uno para El Alto, otro para Tarija.
+// Genera y descarga un archivo .xlsx por sucursal (El Alto, Tarija y Copacabana).
 export async function exportarExcel() {
   const [{ data: clientesTodos }, { data: pagosTodos }, { data: planes }, { data: registroTodo }, { data: trabajosTodos }, logo] = await Promise.all([
     supabase.from('v_clientes_estado').select('*').order('codigo', { ascending: true }),

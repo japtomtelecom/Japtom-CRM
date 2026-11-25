@@ -84,6 +84,7 @@ export default function EstadisticasPage() {
             <option value="todas">Todas las ciudades</option>
             <option value="El Alto">El Alto</option>
             <option value="Tarija">Tarija</option>
+            <option value="Copacabana">Copacabana</option>
           </select>
         )}
       </div>

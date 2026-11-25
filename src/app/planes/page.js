@@ -78,6 +78,7 @@ export default function PlanesPage() {
             <option value="todas">Todas las ciudades</option>
             <option value="El Alto">El Alto</option>
             <option value="Tarija">Tarija</option>
+            <option value="Copacabana">Copacabana</option>
           </select>
         )}
       </div>
@@ -95,6 +96,7 @@ export default function PlanesPage() {
               <select className="input" value={form.ciudad} onChange={(e) => setForm({ ...form, ciudad: e.target.value })} required>
                 <option value="El Alto">El Alto</option>
                 <option value="Tarija">Tarija</option>
+                <option value="Copacabana">Copacabana</option>
               </select>
             </div>
             <div>

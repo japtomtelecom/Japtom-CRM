@@ -47,8 +47,11 @@ export default function ElegirSucursalPage() {
           <button onClick={() => seleccionar('Tarija')} className="btn-primary w-full py-3">
             📍 Tarija
           </button>
+          <button onClick={() => seleccionar('Copacabana')} className="btn-primary w-full py-3">
+            📍 Copacabana
+          </button>
           <button onClick={() => seleccionar('Todas')} className="btn-secondary w-full py-3">
-            🌎 Ver ambas sucursales juntas
+            🌎 Ver todas las sucursales juntas
           </button>
         </div>
       </div>

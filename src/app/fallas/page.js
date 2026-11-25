@@ -133,6 +133,7 @@ function ModalFallaMasiva({ onConfirmar, onClose }) {
         <select className="input" value={ciudad} onChange={(e) => setCiudad(e.target.value)}>
           <option value="El Alto">El Alto</option>
           <option value="Tarija">Tarija</option>
+          <option value="Copacabana">Copacabana</option>
         </select>
 
         <label className="label" style={{ marginTop: 12 }}>Sector afectado</label>
@@ -445,6 +446,7 @@ export default function FallasPage() {
             <option value="todas">Todas las ciudades</option>
             <option value="El Alto">El Alto</option>
             <option value="Tarija">Tarija</option>
+            <option value="Copacabana">Copacabana</option>
           </select>
         </div>
         <div>

@@ -75,7 +75,7 @@ export default function AppShell({ children }) {
                 }}
                 className="text-sm font-semibold bg-brand-600 hover:bg-brand-500 px-3 py-1.5 rounded-lg"
               >
-                📍 {sucursalActiva === 'Todas' ? 'Ambas' : sucursalActiva}
+                📍 {sucursalActiva === 'Todas' ? 'Todas' : sucursalActiva}
               </button>
             )}
             <button
@@ -124,7 +124,7 @@ export default function AppShell({ children }) {
               }}
               className="w-full text-center text-sm font-semibold bg-brand-600 hover:bg-brand-500 px-3 py-2 rounded-lg"
             >
-              📍 {sucursalActiva === 'Todas' ? 'Ambas sucursales' : sucursalActiva} · Cambiar
+              📍 {sucursalActiva === 'Todas' ? 'Todas las sucursales' : sucursalActiva} · Cambiar
             </button>
           )}
         </div>

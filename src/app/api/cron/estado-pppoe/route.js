@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { RouterOSAPI } from 'node-routeros';
 import { configMikrotik } from '@/lib/mikrotikConfig';
+import { SUCURSALES } from '@/lib/sucursales';
 
 // Revisa periódicamente el estado PPPoE de TODOS los clientes activos (de
 // las dos sedes) y actualiza `estado_pppoe`, para que el "desde hace cuánto
@@ -77,9 +78,9 @@ export async function GET(request) {
 
   if (error) return Response.json({ ok: false, error: error.message }, { status: 500 });
 
-  const porCiudad = { Tarija: [], 'El Alto': [] };
+  const porCiudad = Object.fromEntries(SUCURSALES.map((s) => [s, []]));
   (clientes || []).forEach((c) => {
-    const ciudad = c.ciudad === 'Tarija' ? 'Tarija' : 'El Alto';
+    const ciudad = SUCURSALES.includes(c.ciudad) ? c.ciudad : 'El Alto';
     porCiudad[ciudad].push(c);
   });
 

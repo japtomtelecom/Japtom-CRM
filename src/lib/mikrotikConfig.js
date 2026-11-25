@@ -1,7 +1,9 @@
+import { prefijoMikrotik } from './sucursales';
+
 // Devuelve los datos de conexión del MikroTik que corresponde a una ciudad,
 // leyendo las variables de entorno del servidor (nunca expuestas al navegador).
 export function configMikrotik(ciudad) {
-  const prefijo = ciudad === 'Tarija' ? 'MIKROTIK_TARIJA' : 'MIKROTIK_ELALTO';
+  const prefijo = prefijoMikrotik(ciudad);
 
   const host = process.env[`${prefijo}_HOST`];
   const user = process.env[`${prefijo}_USER`];

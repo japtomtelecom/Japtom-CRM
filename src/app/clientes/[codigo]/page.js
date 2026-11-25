@@ -6,6 +6,7 @@ import Link from 'next/link';
 import AppShell from '@/components/AppShell';
 import GraficoTrafico from '@/components/GraficoTrafico';
 import { supabase } from '@/lib/supabaseClient';
+import { usaOltVsol } from '@/lib/sucursales';
 import { llamarApiAdmin } from '@/lib/llamarApiAdmin';
 import { usePerfil } from '@/lib/usePerfil';
 import { useAuth } from '@/lib/useAuth';
@@ -1006,10 +1007,10 @@ function PanelEstadoConexion({ cliente }) {
   const [estado, setEstado] = useState(null);
   const [error, setError] = useState(null);
 
-  const esTarija = (cliente.ciudad || 'El Alto') === 'Tarija';
+  const esVsol = usaOltVsol(cliente.ciudad || 'El Alto');
   const esUbiquitiElAlto = (cliente.ciudad || 'El Alto') === 'El Alto' && cliente.olt_marca === 'Ubiquiti';
   const esBtponElAlto = (cliente.ciudad || 'El Alto') === 'El Alto' && cliente.olt_marca === 'BT-PON';
-  const mostrarOlt = esTarija || esUbiquitiElAlto || esBtponElAlto;
+  const mostrarOlt = esVsol || esUbiquitiElAlto || esBtponElAlto;
 
   async function consultar() {
     if (!confirm(`¿Confirmas consultar el estado de conexión de ${cliente.nombre}?`)) return;
@@ -1137,7 +1138,7 @@ function PanelEstadoConexion({ cliente }) {
           {mostrarOlt && (
             <div className="rounded-lg p-4" style={{ background: '#F5F7F6' }}>
               <p className="text-sm text-brand-400 mb-1">
-                OLT ({esTarija ? 'V-Sol' : esUbiquitiElAlto ? 'Ubiquiti' : 'BT-PON'})
+                OLT ({esVsol ? 'V-Sol' : esUbiquitiElAlto ? 'Ubiquiti' : 'BT-PON'})
               </p>
               {estado.olt?.error ? (
                 <p className="text-base" style={{ color: '#791F1F' }}>⚠️ {estado.olt.error}</p>
@@ -2045,6 +2046,7 @@ export default function FichaClientePage() {
                 <select className="input" value={form.ciudad || 'El Alto'} onChange={(e) => setForm({ ...form, ciudad: e.target.value })}>
                   <option value="El Alto">El Alto</option>
                   <option value="Tarija">Tarija</option>
+                  <option value="Copacabana">Copacabana</option>
                 </select>
               </div>
               <div>
@@ -2317,7 +2319,7 @@ export default function FichaClientePage() {
 
           {isAdmin && !editando && <PanelMikrotik cliente={cliente} onRecargar={cargar} />}
 
-          {isAdmin && !editando && cliente.ciudad === 'Tarija' && (
+          {isAdmin && !editando && usaOltVsol(cliente.ciudad) && (
             <PanelOlt cliente={cliente} onRecargar={cargar} optico={opticoOlt} setOptico={setOpticoOlt} />
           )}
 

@@ -1,6 +1,7 @@
 import { RouterOSAPI } from 'node-routeros';
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
+import { prefijoMikrotik } from '@/lib/sucursales';
 import { leerTraficoConConexion } from '@/lib/mikrotikTrafico';
 
 // Tráfico de cada enlace de internet configurado para una sede, cuando hay
@@ -18,7 +19,7 @@ export async function POST(request) {
   try {
     const routerConfig = configMikrotik(ciudad);
     if (!routerConfig.enlaces.length) {
-      const prefijo = ciudad === 'Tarija' ? 'MIKROTIK_TARIJA' : 'MIKROTIK_ELALTO';
+      const prefijo = prefijoMikrotik(ciudad);
       return Response.json(
         {
           error: `No hay enlaces configurados para "${ciudad}". Definí ${prefijo}_ENLACES en Vercel, ej: "COMTECO:sfp-sfpplus1 COMTECO 1,ENTEL:sfp-sfpplus5. Entel Pampahasi".`,

@@ -158,6 +158,7 @@ export default function DashboardPage() {
             <option value="todas">Todas las ciudades</option>
             <option value="El Alto">El Alto</option>
             <option value="Tarija">Tarija</option>
+            <option value="Copacabana">Copacabana</option>
           </select>
         )}
       </div>
@@ -196,6 +197,16 @@ export default function DashboardPage() {
             titulo="📡 Tráfico en tiempo real — MikroTik Tarija"
             endpoint="/api/mikrotik/trafico-router"
             body={{ ciudad: 'Tarija' }}
+          />
+        </div>
+      )}
+
+      {isAdmin && ciudad === 'Copacabana' && (
+        <div className="mt-6">
+          <GraficoTrafico
+            titulo="📡 Tráfico en tiempo real — MikroTik Copacabana"
+            endpoint="/api/mikrotik/trafico-router"
+            body={{ ciudad: 'Copacabana' }}
           />
         </div>
       )}

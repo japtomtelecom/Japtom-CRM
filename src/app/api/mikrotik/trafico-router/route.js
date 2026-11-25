@@ -1,6 +1,7 @@
 import { RouterOSAPI } from 'node-routeros';
 import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configMikrotik } from '@/lib/mikrotikConfig';
+import { prefijoMikrotik } from '@/lib/sucursales';
 import { leerTraficoConConexion } from '@/lib/mikrotikTrafico';
 
 // Tráfico total de la interfaz WAN del MikroTik de una sede (subida/bajada
@@ -17,7 +18,7 @@ export async function POST(request) {
   try {
     const routerConfig = configMikrotik(ciudad);
     if (!routerConfig.wanIface) {
-      const prefijo = ciudad === 'Tarija' ? 'MIKROTIK_TARIJA' : 'MIKROTIK_ELALTO';
+      const prefijo = prefijoMikrotik(ciudad);
       return Response.json(
         {
           error: `No hay una interfaz WAN configurada para "${ciudad}". Definí la variable ${prefijo}_WAN_IFACE en Vercel con el nombre exacto de la interfaz de internet (tal cual aparece en Winbox → Interfaces).`,

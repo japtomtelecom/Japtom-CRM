@@ -166,7 +166,7 @@ export default function TicketsPage() {
     <AppShell>
       <h1 className="font-display text-2xl font-bold text-brand-800 mb-1">Tickets de falla</h1>
       <p className="text-brand-500 mb-6">
-        Busca a cualquier cliente — de El Alto o de Tarija — y genera su ticket de falla en PDF. El ticket queda
+        Busca a cualquier cliente — de cualquier sucursal — y genera su ticket de falla en PDF. El ticket queda
         guardado en el historial del cliente y en{' '}
         <Link href="/fallas" className="hover:underline">
           Fallas
@@ -181,6 +181,7 @@ export default function TicketsPage() {
             <option value="todas">Todas las ciudades</option>
             <option value="El Alto">El Alto</option>
             <option value="Tarija">Tarija</option>
+            <option value="Copacabana">Copacabana</option>
           </select>
         </div>
 

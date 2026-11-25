@@ -315,6 +315,7 @@ export default function ClientesPage() {
             <option value="todas">Todas las ciudades</option>
             <option value="El Alto">El Alto</option>
             <option value="Tarija">Tarija</option>
+            <option value="Copacabana">Copacabana</option>
           </select>
         )}
         <select className="input md:max-w-[180px]" value={filtro} onChange={(e) => setFiltro(e.target.value)}>

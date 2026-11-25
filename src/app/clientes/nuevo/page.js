@@ -112,6 +112,7 @@ export default function NuevoClientePage() {
               <select className="input" value={form.ciudad} onChange={(e) => setForm({ ...form, ciudad: e.target.value })}>
                 <option value="El Alto">El Alto</option>
                 <option value="Tarija">Tarija</option>
+                <option value="Copacabana">Copacabana</option>
               </select>
             )}
           </div>
