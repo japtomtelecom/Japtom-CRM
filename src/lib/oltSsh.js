@@ -202,9 +202,12 @@ export function parseOpticalInfo(texto) {
 // Por eso el prefijo "GPON0/" es opcional. La fila tiene que empezar la
 // línea y seguir con el estado "enable"/"disable", así no se confunde con
 // otras líneas de la consola (como la hora del login, "19:33:04").
+// Las columnas se separan con \s+ (no solo espacios): según la terminal, la OLT
+// puede escribir cada columna en una línea distinta (así llegó por SSH desde
+// el CRM: "1:3" / "enable" / "enable" / "working" / serie).
 export function parseOnuState(texto) {
   const m = texto.match(
-    /^[ \t]*(?:GPON\d+\/)?\d+:\d+[ \t]+(enable|disable)[ \t]+(\S+)[ \t]+(\S+)[ \t]+(\S+)/im
+    /^[ \t]*(?:GPON\d+\/)?\d+:\d+\s+(enable|disable)\s+(\S+)\s+(\S+)\s+(\S+)/im
   );
   if (!m) return { encontrado: false };
   return {
