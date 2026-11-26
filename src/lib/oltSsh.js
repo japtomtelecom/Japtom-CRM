@@ -28,9 +28,19 @@ function limpiarAnsi(texto) {
   return texto.replace(/\x1B\[[0-9;]*[a-zA-Z]/g, '');
 }
 
+// Un "prompt" es lo último que escribe la OLT cuando queda esperando algo:
+// el nombre del equipo terminado en > o # (ej. "OLT_TARIJA> " o
+// "OLT_TARIJA(config-pon-0/1)# "), o el pedido "Password:". Tiene que estar
+// al FINAL del texto, sin salto de línea después: así no se confunde con las
+// rayas "####" del cuadro de bienvenida.
+const PROMPT_RE = /(?:[\w.\-]|\))[>#][ \t]*$|Password:[ \t]*$/i;
+
 export function ejecutarComandosOlt(config, comandos, opciones = {}) {
   const settleMs = opciones.settleMs ?? 700;
-  const timeoutMs = opciones.timeoutMs ?? 20000;
+  const timeoutMs = opciones.timeoutMs ?? 25000;
+  // Tiempo máximo que se espera el prompt de la OLT antes de mandar el
+  // siguiente comando de todos modos.
+  const maxEsperaMs = opciones.maxEsperaMs ?? 8000;
 
   return new Promise((resolve, reject) => {
     const conn = new Client();
@@ -38,6 +48,11 @@ export function ejecutarComandosOlt(config, comandos, opciones = {}) {
     let indice = 0;
     let settleTimer = null;
     let terminado = false;
+    // Dónde empieza lo que la OLT contestó al último comando enviado, y
+    // desde cuándo se está esperando esa respuesta.
+    let inicioTramo = 0;
+    let esperaDesde = Date.now();
+    const hayPrompt = () => PROMPT_RE.test(salida.slice(inicioTramo));
 
     const limiteGeneral = setTimeout(() => {
       if (terminado) return;
@@ -62,24 +77,38 @@ export function ejecutarComandosOlt(config, comandos, opciones = {}) {
       fn(valor);
     }
 
+    // Antes de mandar el siguiente comando se espera a que la OLT muestre su
+    // prompt (o el "Password:"). Si no se espera, los comandos se escriben por
+    // adelantado mientras la consola de la OLT todavía está arrancando, y la
+    // V1600GS-R descarta lo que ya estaba escrito en cuanto pide el "Password:":
+    // así se perdía la contraseña y los comandos siguientes se tomaban como
+    // intentos de contraseña ("Too many failures"). Si el prompt no aparece,
+    // se manda igual después de `maxEsperaMs`, como antes.
     function enviarSiguiente(stream) {
       if (terminado) return;
+      if (!hayPrompt() && Date.now() - esperaDesde < maxEsperaMs) {
+        settleTimer = setTimeout(() => enviarSiguiente(stream), 250);
+        return;
+      }
       if (indice >= comandos.length) {
         stream.end('exit\n');
         return;
       }
       const cmd = comandos[indice++];
+      inicioTramo = salida.length;
+      esperaDesde = Date.now();
       stream.write(cmd + '\n');
     }
 
     conn.on('ready', () => {
       conn.shell({ term: 'vt100', cols: 200, rows: 50 }, (err, stream) => {
         if (err) return finalizar(reject, err);
+        esperaDesde = Date.now();
 
         stream.on('data', (data) => {
           salida += limpiarAnsi(data.toString('utf8'));
           if (settleTimer) clearTimeout(settleTimer);
-          settleTimer = setTimeout(() => enviarSiguiente(stream), settleMs);
+          settleTimer = setTimeout(() => enviarSiguiente(stream), hayPrompt() ? 150 : settleMs);
         });
         stream.on('close', () => finalizar(resolve, salida));
         stream.on('error', (e) => finalizar(reject, e));

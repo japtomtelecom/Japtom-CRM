@@ -6,6 +6,9 @@ import { ejecutarComandosOlt, comandosEnInterfazPon, detectarErrorCli } from '@/
 // corte por PPPoE en el MikroTik). Útil como plan B si el MikroTik de esa
 // sucursal no está disponible, o para aislar si un problema es de la ONT
 // o del router.
+// La consola de la OLT puede tardar varios segundos en responder.
+export const maxDuration = 30;
+
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });

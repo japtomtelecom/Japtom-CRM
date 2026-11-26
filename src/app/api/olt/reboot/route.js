@@ -2,6 +2,9 @@ import { verificarAdmin } from '@/lib/verificarAdmin';
 import { configOlt } from '@/lib/oltConfig';
 import { ejecutarComandosOlt, comandosEnInterfazPon, detectarErrorCli } from '@/lib/oltSsh';
 
+// La consola de la OLT puede tardar varios segundos en responder.
+export const maxDuration = 30;
+
 export async function POST(request) {
   const auth = await verificarAdmin(request);
   if (!auth.ok) return Response.json({ error: auth.error }, { status: auth.status });
