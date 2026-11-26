@@ -7,6 +7,7 @@ import {
   parseOnuState,
   evaluarRx,
   detectarErrorCli,
+  comandosOpticalInfo,
 } from '@/lib/oltSsh';
 
 export async function POST(request) {
@@ -34,7 +35,7 @@ export async function POST(request) {
     const config = configOlt(cliente.ciudad);
     const comandos = comandosEnInterfazPon(
       cliente.olt_puerto_pon,
-      [`show onu ${cliente.olt_onu_id} optical_info`, `show onu state ${cliente.olt_onu_id}`],
+      [...comandosOpticalInfo(cliente.olt_onu_id), `show onu state ${cliente.olt_onu_id}`],
       config.enablePassword
     );
     const salida = await ejecutarComandosOlt(config, comandos);

@@ -132,6 +132,15 @@ export function comandosEnInterfazPon(puertoPon, comandosInternos, enablePasswor
   ];
 }
 
+// Comando de potencia óptica de una ONU. Cambia según el firmware de la OLT:
+//   V1600G0-B:  show onu <id> optical_info
+//   V1600GS-R:  show onu optical-info <id>
+// Se mandan los dos: la OLT rechaza el que no entiende con "% Unknown command"
+// (inofensivo) y el parser lee la respuesta del que sí funciona.
+export function comandosOpticalInfo(onuId) {
+  return [`show onu ${onuId} optical_info`, `show onu optical-info ${onuId}`];
+}
+
 // --- Parsers de la salida de texto de la OLT ---
 
 // Ejemplo de salida real de "show onu <id> optical_info":
@@ -157,8 +166,17 @@ export function parseOpticalInfo(texto) {
 // Ejemplo de salida real de "show onu state <id>":
 //   OnuIndex    Admin State    OMCC State    Phase State    Serial Number
 //   GPON0/1:1   enable         enable        working        HWTC10ea4bab
+//
+// La columna "OnuIndex" cambia según el modelo de OLT V-Sol:
+//   V1600G0-B (varios puertos):  GPON0/1:1
+//   V1600GS-R (1 puerto PON):    1:1
+// Por eso el prefijo "GPON0/" es opcional. La fila tiene que empezar la
+// línea y seguir con el estado "enable"/"disable", así no se confunde con
+// otras líneas de la consola (como la hora del login, "19:33:04").
 export function parseOnuState(texto) {
-  const m = texto.match(/GPON\d+\/\d+:\d+\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)/);
+  const m = texto.match(
+    /^[ \t]*(?:GPON\d+\/)?\d+:\d+[ \t]+(enable|disable)[ \t]+(\S+)[ \t]+(\S+)[ \t]+(\S+)/im
+  );
   if (!m) return { encontrado: false };
   return {
     encontrado: true,

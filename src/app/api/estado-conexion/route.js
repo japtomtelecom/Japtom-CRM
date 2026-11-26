@@ -11,6 +11,7 @@ import {
   parseOpticalInfo,
   evaluarRx,
   detectarErrorCli,
+  comandosOpticalInfo,
 } from '@/lib/oltSsh';
 import { obtenerOnusUbiquiti, buscarOnu } from '@/lib/oltUbiquiti';
 import { obtenerEstadoOnu, obtenerOpticaOnu } from '@/lib/oltBtpon';
@@ -112,7 +113,7 @@ async function consultarOlt(cliente) {
     const config = configOlt(cliente.ciudad);
     const comandos = comandosEnInterfazPon(
       cliente.olt_puerto_pon,
-      [`show onu ${cliente.olt_onu_id} optical_info`, `show onu state ${cliente.olt_onu_id}`],
+      [...comandosOpticalInfo(cliente.olt_onu_id), `show onu state ${cliente.olt_onu_id}`],
       config.enablePassword
     );
     const salida = await ejecutarComandosOlt(config, comandos);
